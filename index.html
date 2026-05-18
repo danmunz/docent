@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frame Art Manager</title>
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #161616;
+    --surface2: #1e1e1e;
+    --border: #2a2a2a;
+    --text: #e8e8e8;
+    --text2: #888;
+    --accent: #4a9eff;
+    --accent-hover: #6bb3ff;
+    --danger: #e55;
+    --success: #4c6;
+    --radius: 8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 32px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  header h1 {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+  }
+
+  .header-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .tv-status {
+    font-size: 13px;
+    color: var(--text2);
+  }
+
+  .tv-status .dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+    background: var(--success);
+  }
+
+  .tv-status .dot.off { background: var(--danger); }
+
+  button {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 8px 16px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  button:hover { background: #282828; border-color: #444; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { background: var(--accent-hover); }
+  button.danger { border-color: var(--danger); color: var(--danger); }
+  button.danger:hover { background: rgba(238,85,85,0.15); }
+  button:disabled { opacity: 0.4; cursor: default; }
+
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 32px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+
+  .toolbar .spacer { flex: 1; }
+
+  .selection-info {
+    font-size: 13px;
+    color: var(--text2);
+  }
+
+  /* Art grid */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+    padding: 24px 32px;
+  }
+
+  .art-card {
+    position: relative;
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.15s;
+  }
+
+  .art-card:hover { border-color: #444; transform: translateY(-2px); }
+  .art-card.selected { border-color: var(--accent); }
+  .art-card.current { border-color: var(--success); }
+
+  .art-card .thumb {
+    width: 100%;
+    aspect-ratio: 16/9;
+    object-fit: cover;
+    display: block;
+    background: #111;
+  }
+
+  .art-card .thumb.loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text2);
+    font-size: 12px;
+  }
+
+  .art-card .info {
+    padding: 10px 12px;
+    font-size: 12px;
+    color: var(--text2);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .art-card .current-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: var(--success);
+    color: #000;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    text-transform: uppercase;
+  }
+
+  .art-card .checkbox {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    border: 2px solid rgba(255,255,255,0.4);
+    background: rgba(0,0,0,0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 14px;
+  }
+
+  .select-mode .art-card .checkbox { display: flex; }
+  .art-card.selected .checkbox { background: var(--accent); border-color: var(--accent); }
+
+  /* Upload drop zone */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 48px 24px;
+    text-align: center;
+    color: var(--text2);
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    margin: 24px 32px;
+  }
+
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(74,158,255,0.05);
+  }
+
+  .upload-zone h3 { color: var(--text); margin-bottom: 8px; font-size: 16px; }
+  .upload-zone p { font-size: 13px; }
+
+  .upload-zone input[type="file"] { display: none; }
+
+  /* Upload preview */
+  .upload-preview {
+    display: none;
+    margin: 0 32px 24px;
+    padding: 16px;
+    background: var(--surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+  }
+
+  .upload-preview.active { display: flex; gap: 20px; align-items: flex-start; }
+
+  .upload-preview img {
+    max-width: 300px;
+    max-height: 200px;
+    border-radius: 4px;
+    object-fit: contain;
+    background: #000;
+  }
+
+  .upload-preview .upload-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .upload-preview label {
+    font-size: 13px;
+    color: var(--text2);
+  }
+
+  .upload-preview select {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    border-radius: var(--radius);
+    font-size: 13px;
+  }
+
+  /* Settings panel */
+  .settings-panel {
+    display: none;
+    margin: 0 32px 24px;
+    padding: 20px;
+    background: var(--surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+  }
+
+  .settings-panel.active { display: block; }
+
+  .settings-panel h3 {
+    font-size: 15px;
+    margin-bottom: 16px;
+  }
+
+  .setting-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 14px;
+  }
+
+  .setting-row label {
+    min-width: 140px;
+    font-size: 13px;
+    color: var(--text2);
+  }
+
+  .setting-row input[type="range"] {
+    flex: 1;
+    max-width: 300px;
+    accent-color: var(--accent);
+  }
+
+  .setting-row .range-value {
+    font-size: 13px;
+    min-width: 30px;
+    color: var(--text);
+  }
+
+  /* Detail panel (matte chooser) */
+  .detail-panel {
+    display: none;
+    position: fixed;
+    top: 0; right: 0;
+    width: 380px;
+    height: 100vh;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    padding: 24px;
+    z-index: 100;
+    overflow-y: auto;
+  }
+
+  .detail-panel.active { display: block; }
+
+  .detail-panel h3 { margin-bottom: 16px; font-size: 16px; }
+
+  .detail-panel .detail-thumb {
+    width: 100%;
+    aspect-ratio: 16/9;
+    object-fit: contain;
+    background: #000;
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+  }
+
+  .detail-panel .detail-info {
+    font-size: 13px;
+    color: var(--text2);
+    margin-bottom: 16px;
+  }
+
+  .matte-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .matte-option {
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 11px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s;
+    word-break: break-word;
+  }
+
+  .matte-option:hover { border-color: #555; }
+  .matte-option.active { border-color: var(--accent); background: rgba(74,158,255,0.1); }
+
+  .detail-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+  }
+
+  .detail-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: none;
+    border: none;
+    color: var(--text2);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 4px;
+  }
+
+  .overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 99;
+  }
+
+  .overlay.active { display: block; }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 10px 20px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    z-index: 200;
+    opacity: 0;
+    transition: transform 0.3s, opacity 0.3s;
+    pointer-events: none;
+  }
+
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* Loading spinner */
+  .spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 300;
+    flex-direction: column;
+    gap: 12px;
+    color: var(--text2);
+    font-size: 14px;
+  }
+
+  .loading-overlay .spinner { width: 32px; height: 32px; border-width: 3px; }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 32px;
+    color: var(--text2);
+  }
+
+  .empty-state h3 { color: var(--text); margin-bottom: 8px; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Frame Art Manager</h1>
+    <div class="header-controls">
+      <span class="tv-status" id="tvStatus">Connecting...</span>
+      <button id="btnArtMode" onclick="toggleArtMode()">Art Mode</button>
+      <button id="btnSettings" onclick="toggleSettings()">Settings</button>
+    </div>
+  </header>
+
+  <div class="settings-panel" id="settingsPanel">
+    <h3>Display Settings</h3>
+    <div class="setting-row">
+      <label>Brightness</label>
+      <input type="range" id="brightness" min="0" max="100" value="50"
+             oninput="document.getElementById('brightnessVal').textContent=this.value"
+             onchange="setSetting('brightness', this.value)">
+      <span class="range-value" id="brightnessVal">50</span>
+    </div>
+    <div class="setting-row">
+      <label>Color Temperature</label>
+      <input type="range" id="colorTemp" min="0" max="100" value="50"
+             oninput="document.getElementById('colorTempVal').textContent=this.value"
+             onchange="setSetting('color_temperature', this.value)">
+      <span class="range-value" id="colorTempVal">50</span>
+    </div>
+  </div>
+
+  <div class="upload-zone" id="uploadZone">
+    <h3>Upload Artwork</h3>
+    <p>Drag and drop images here, or click to browse</p>
+    <input type="file" id="fileInput" accept="image/*" multiple>
+  </div>
+
+  <div class="upload-preview" id="uploadPreview">
+    <img id="previewImg" src="">
+    <div class="upload-controls">
+      <label>Matte Style</label>
+      <select id="uploadMatte">
+        <option value="none">None</option>
+        <option value="shadowbox_polar" selected>Shadow Box - Polar</option>
+        <option value="shadowbox_night">Shadow Box - Night</option>
+        <option value="shadowbox_sand">Shadow Box - Sand</option>
+        <option value="shadowbox_slate">Shadow Box - Slate</option>
+        <option value="modernthin_polar">Modern Thin - Polar</option>
+        <option value="modernthin_night">Modern Thin - Night</option>
+        <option value="modernthin_sand">Modern Thin - Sand</option>
+        <option value="modernthin_slate">Modern Thin - Slate</option>
+        <option value="none">No Matte</option>
+      </select>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="primary" onclick="doUpload()">Upload to Frame</button>
+        <button onclick="cancelUpload()">Cancel</button>
+      </div>
+      <p id="uploadStatus" style="font-size:12px;color:var(--text2);margin-top:4px"></p>
+    </div>
+  </div>
+
+  <div class="toolbar" id="toolbar">
+    <button id="btnSelectMode" onclick="toggleSelectMode()">Select</button>
+    <span class="selection-info" id="selectionInfo"></span>
+    <div class="spacer"></div>
+    <button id="btnDeleteSelected" class="danger" style="display:none" onclick="deleteSelected()">Delete Selected</button>
+    <button onclick="loadArt()">Refresh</button>
+  </div>
+
+  <div class="grid" id="artGrid"></div>
+
+  <div class="overlay" id="overlay" onclick="closeDetail()"></div>
+  <div class="detail-panel" id="detailPanel">
+    <button class="detail-close" onclick="closeDetail()">&times;</button>
+    <h3 id="detailTitle">Artwork Details</h3>
+    <img class="detail-thumb" id="detailThumb" src="">
+    <div class="detail-info" id="detailInfo"></div>
+    <h4 style="font-size:13px;margin-bottom:8px;color:var(--text2)">Matte</h4>
+    <div class="matte-grid" id="matteGrid"></div>
+    <div class="detail-actions">
+      <button class="primary" onclick="displayCurrent()">Display on Frame</button>
+      <button class="danger" onclick="deleteCurrent()">Delete</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    let artItems = [];
+    let currentId = null;
+    let selectedIds = new Set();
+    let selectMode = false;
+    let detailItem = null;
+    let artModeOn = false;
+    let mattes = null;
+    let pendingFiles = [];
+
+    // --- API helpers ---
+
+    async function api(path, opts = {}) {
+      const url = '/api' + path;
+      const res = await fetch(url, {
+        headers: opts.body instanceof FormData ? {} : { 'Content-Type': 'application/json' },
+        ...opts,
+        body: opts.body instanceof FormData ? opts.body : opts.body ? JSON.stringify(opts.body) : undefined,
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err);
+      }
+      if (res.headers.get('content-type')?.includes('json')) return res.json();
+      return res;
+    }
+
+    function toast(msg, duration = 3000) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), duration);
+    }
+
+    function showLoading(msg) {
+      const el = document.createElement('div');
+      el.className = 'loading-overlay';
+      el.id = 'loadingOverlay';
+      el.innerHTML = `<div class="spinner"></div><span>${msg}</span>`;
+      document.body.appendChild(el);
+    }
+
+    function hideLoading() {
+      document.getElementById('loadingOverlay')?.remove();
+    }
+
+    // --- Init ---
+
+    async function init() {
+      try {
+        const info = await api('/info');
+        artModeOn = info.artmode === 'on';
+        updateArtModeButton();
+        document.getElementById('tvStatus').innerHTML =
+          `<span class="dot"></span>Connected — API v${info.api_version}`;
+      } catch (e) {
+        document.getElementById('tvStatus').innerHTML =
+          `<span class="dot off"></span>TV offline`;
+        toast('Cannot connect to TV: ' + e.message);
+      }
+
+      loadSettings();
+      loadArt();
+      loadMattes();
+    }
+
+    async function loadSettings() {
+      try {
+        const s = await api('/settings');
+        if (s.brightness != null) {
+          document.getElementById('brightness').value = s.brightness;
+          document.getElementById('brightnessVal').textContent = s.brightness;
+        }
+        if (s.color_temperature != null) {
+          document.getElementById('colorTemp').value = s.color_temperature;
+          document.getElementById('colorTempVal').textContent = s.color_temperature;
+        }
+      } catch {}
+    }
+
+    async function loadMattes() {
+      try {
+        mattes = await api('/mattes');
+      } catch {}
+    }
+
+    async function loadArt() {
+      const grid = document.getElementById('artGrid');
+      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text2)"><div class="spinner"></div><br>Loading artwork...</div>';
+
+      try {
+        const data = await api('/art');
+        artItems = data.items || [];
+        currentId = data.current_id;
+        renderGrid();
+        loadThumbnails();
+      } catch (e) {
+        grid.innerHTML = `<div class="empty-state"><h3>Could not load artwork</h3><p>${e.message}</p></div>`;
+      }
+    }
+
+    function renderGrid() {
+      const grid = document.getElementById('artGrid');
+      if (!artItems.length) {
+        grid.innerHTML = '<div class="empty-state"><h3>No artwork on Frame</h3><p>Upload some images to get started</p></div>';
+        return;
+      }
+
+      grid.innerHTML = artItems.map(item => {
+        const id = item.content_id;
+        const isCurrent = id === currentId;
+        const isSelected = selectedIds.has(id);
+        const category = item.category_id || '';
+        const isMyPhoto = category.startsWith('MY-');
+        return `
+          <div class="art-card ${isSelected ? 'selected' : ''} ${isCurrent ? 'current' : ''}"
+               data-id="${id}" onclick="onCardClick('${id}', event)">
+            <div class="checkbox">${isSelected ? '&#10003;' : ''}</div>
+            ${isCurrent ? '<span class="current-badge">Displayed</span>' : ''}
+            <div class="thumb loading" id="thumb-${id}">Loading...</div>
+            <div class="info">
+              <span>${isMyPhoto ? 'My Photo' : category}</span>
+              <span>${item.content_id?.substring(0, 8) || ''}</span>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    async function loadThumbnails() {
+      const BATCH = 10;
+      for (let i = 0; i < artItems.length; i += BATCH) {
+        const batch = artItems.slice(i, i + BATCH);
+        const ids = batch.map(a => a.content_id);
+        try {
+          const data = await api('/thumbnails', {
+            method: 'POST',
+            body: { content_ids: ids },
+          });
+          for (const [name, b64] of Object.entries(data.thumbnails)) {
+            const cid = ids.find(id => name.startsWith(id)) || ids[Math.min(Object.keys(data.thumbnails).indexOf(name), ids.length - 1)];
+            for (const id of ids) {
+              const el = document.getElementById('thumb-' + id);
+              if (el && name.startsWith(id)) {
+                const img = document.createElement('img');
+                img.className = 'thumb';
+                img.src = 'data:image/jpeg;base64,' + b64;
+                el.replaceWith(img);
+                img.id = 'thumb-' + id;
+              }
+            }
+          }
+          // For any that didn't match by prefix, try sequential
+          const thumbEls = batch.map(a => document.getElementById('thumb-' + a.content_id));
+          const thumbEntries = Object.entries(data.thumbnails);
+          thumbEntries.forEach(([name, b64], idx) => {
+            if (idx < thumbEls.length && thumbEls[idx]?.classList?.contains('loading')) {
+              const img = document.createElement('img');
+              img.className = 'thumb';
+              img.src = 'data:image/jpeg;base64,' + b64;
+              img.id = thumbEls[idx].id;
+              thumbEls[idx].replaceWith(img);
+            }
+          });
+        } catch {
+          // Fall back to individual thumbnails
+          for (const id of ids) {
+            const el = document.getElementById('thumb-' + id);
+            if (el && el.classList.contains('loading')) {
+              try {
+                const img = document.createElement('img');
+                img.className = 'thumb';
+                img.src = '/api/thumbnail/' + id;
+                img.id = 'thumb-' + id;
+                el.replaceWith(img);
+              } catch {}
+            }
+          }
+        }
+      }
+    }
+
+    // --- Card interactions ---
+
+    function onCardClick(id, event) {
+      if (selectMode) {
+        event.preventDefault();
+        if (selectedIds.has(id)) selectedIds.delete(id);
+        else selectedIds.add(id);
+        renderGrid();
+        updateSelectionInfo();
+        return;
+      }
+      openDetail(id);
+    }
+
+    function toggleSelectMode() {
+      selectMode = !selectMode;
+      selectedIds.clear();
+      document.getElementById('artGrid').classList.toggle('select-mode', selectMode);
+      document.getElementById('btnSelectMode').textContent = selectMode ? 'Cancel' : 'Select';
+      document.getElementById('btnDeleteSelected').style.display = selectMode ? '' : 'none';
+      updateSelectionInfo();
+      renderGrid();
+    }
+
+    function updateSelectionInfo() {
+      const info = document.getElementById('selectionInfo');
+      if (!selectMode) { info.textContent = ''; return; }
+      info.textContent = selectedIds.size ? `${selectedIds.size} selected` : 'Click cards to select';
+    }
+
+    // --- Detail panel ---
+
+    function openDetail(id) {
+      detailItem = artItems.find(a => a.content_id === id);
+      if (!detailItem) return;
+
+      document.getElementById('detailTitle').textContent = detailItem.category_id?.startsWith('MY-') ? 'My Photo' : 'Artwork';
+      const thumb = document.getElementById('thumb-' + id);
+      document.getElementById('detailThumb').src = thumb?.src || '';
+      document.getElementById('detailInfo').innerHTML = `
+        <div>ID: ${id}</div>
+        <div>Category: ${detailItem.category_id || 'Unknown'}</div>
+        ${detailItem.matte_id ? `<div>Matte: ${detailItem.matte_id}</div>` : ''}
+      `;
+
+      renderMattes(detailItem.matte_id);
+
+      document.getElementById('detailPanel').classList.add('active');
+      document.getElementById('overlay').classList.add('active');
+    }
+
+    function closeDetail() {
+      document.getElementById('detailPanel').classList.remove('active');
+      document.getElementById('overlay').classList.remove('active');
+      detailItem = null;
+    }
+
+    function renderMattes(currentMatte) {
+      const grid = document.getElementById('matteGrid');
+      const matteTypes = mattes?.matte_types || [
+        { matte_type_id: 'none' },
+        { matte_type_id: 'shadowbox_polar' },
+        { matte_type_id: 'shadowbox_night' },
+        { matte_type_id: 'shadowbox_sand' },
+        { matte_type_id: 'shadowbox_slate' },
+        { matte_type_id: 'modernthin_polar' },
+        { matte_type_id: 'modernthin_night' },
+        { matte_type_id: 'modernthin_sand' },
+        { matte_type_id: 'modernthin_slate' },
+      ];
+
+      grid.innerHTML = matteTypes.map(m => {
+        const id = m.matte_type_id || m.matte_id || 'none';
+        const label = id.replace(/_/g, ' ');
+        const isActive = id === (currentMatte || 'none');
+        return `<div class="matte-option ${isActive ? 'active' : ''}" onclick="setMatte('${id}')">${label}</div>`;
+      }).join('');
+    }
+
+    async function setMatte(matteId) {
+      if (!detailItem) return;
+      try {
+        await api('/matte', { method: 'POST', body: { content_id: detailItem.content_id, matte_id: matteId } });
+        detailItem.matte_id = matteId;
+        renderMattes(matteId);
+        toast('Matte updated');
+      } catch (e) {
+        toast('Failed: ' + e.message);
+      }
+    }
+
+    async function displayCurrent() {
+      if (!detailItem) return;
+      try {
+        showLoading('Setting display...');
+        await api('/select', { method: 'POST', body: { content_id: detailItem.content_id } });
+        currentId = detailItem.content_id;
+        renderGrid();
+        toast('Now displaying');
+      } catch (e) {
+        toast('Failed: ' + e.message);
+      } finally {
+        hideLoading();
+      }
+    }
+
+    async function deleteCurrent() {
+      if (!detailItem) return;
+      if (!confirm('Delete this artwork from your Frame?')) return;
+      try {
+        showLoading('Deleting...');
+        await api('/delete', { method: 'POST', body: { content_ids: [detailItem.content_id] } });
+        closeDetail();
+        toast('Deleted');
+        loadArt();
+      } catch (e) {
+        toast('Failed: ' + e.message);
+      } finally {
+        hideLoading();
+      }
+    }
+
+    async function deleteSelected() {
+      if (!selectedIds.size) return;
+      if (!confirm(`Delete ${selectedIds.size} artwork(s)?`)) return;
+      try {
+        showLoading('Deleting...');
+        await api('/delete', { method: 'POST', body: { content_ids: [...selectedIds] } });
+        selectedIds.clear();
+        toggleSelectMode();
+        toast('Deleted');
+        loadArt();
+      } catch (e) {
+        toast('Failed: ' + e.message);
+      } finally {
+        hideLoading();
+      }
+    }
+
+    // --- Art mode ---
+
+    function updateArtModeButton() {
+      const btn = document.getElementById('btnArtMode');
+      btn.textContent = artModeOn ? 'Art Mode: ON' : 'Art Mode: OFF';
+      btn.classList.toggle('primary', artModeOn);
+    }
+
+    async function toggleArtMode() {
+      try {
+        artModeOn = !artModeOn;
+        await api('/artmode', { method: 'POST', body: { mode: artModeOn } });
+        updateArtModeButton();
+        toast(artModeOn ? 'Art mode on' : 'Art mode off');
+      } catch (e) {
+        artModeOn = !artModeOn;
+        updateArtModeButton();
+        toast('Failed: ' + e.message);
+      }
+    }
+
+    // --- Settings ---
+
+    function toggleSettings() {
+      document.getElementById('settingsPanel').classList.toggle('active');
+    }
+
+    async function setSetting(name, value) {
+      try {
+        await api('/' + name, { method: 'POST', body: { value: parseInt(value) } });
+        toast(name.replace('_', ' ') + ' set to ' + value);
+      } catch (e) {
+        toast('Failed: ' + e.message);
+      }
+    }
+
+    // --- Upload ---
+
+    const uploadZone = document.getElementById('uploadZone');
+    const fileInput = document.getElementById('fileInput');
+
+    uploadZone.addEventListener('click', () => fileInput.click());
+    uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+    uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+    uploadZone.addEventListener('drop', e => {
+      e.preventDefault();
+      uploadZone.classList.remove('dragover');
+      handleFiles(e.dataTransfer.files);
+    });
+    fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+
+    function handleFiles(files) {
+      if (!files.length) return;
+      pendingFiles = [...files];
+      const file = pendingFiles[0];
+      const reader = new FileReader();
+      reader.onload = e => {
+        document.getElementById('previewImg').src = e.target.result;
+        document.getElementById('uploadPreview').classList.add('active');
+        document.getElementById('uploadStatus').textContent =
+          pendingFiles.length > 1 ? `${pendingFiles.length} files selected` : file.name;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function cancelUpload() {
+      pendingFiles = [];
+      document.getElementById('uploadPreview').classList.remove('active');
+      fileInput.value = '';
+    }
+
+    async function doUpload() {
+      if (!pendingFiles.length) return;
+      const matte = document.getElementById('uploadMatte').value;
+      const status = document.getElementById('uploadStatus');
+
+      showLoading(`Uploading ${pendingFiles.length} file(s)...`);
+
+      let uploaded = 0;
+      for (const file of pendingFiles) {
+        try {
+          const form = new FormData();
+          form.append('file', file);
+          form.append('matte', matte);
+          await api('/upload', { method: 'POST', body: form });
+          uploaded++;
+          status.textContent = `Uploaded ${uploaded}/${pendingFiles.length}`;
+        } catch (e) {
+          toast(`Failed to upload ${file.name}: ${e.message}`);
+        }
+      }
+
+      hideLoading();
+      cancelUpload();
+      toast(`Uploaded ${uploaded} file(s)`);
+      loadArt();
+    }
+
+    // --- Start ---
+    init();
+  </script>
+</body>
+</html>
