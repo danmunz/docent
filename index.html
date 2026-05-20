@@ -83,6 +83,15 @@
   button.danger:hover { background: rgba(238,85,85,0.15); }
   button:disabled { opacity: 0.4; cursor: default; }
 
+  select {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    border-radius: var(--radius);
+    font-size: 13px;
+  }
+
   .toolbar {
     display: flex;
     align-items: center;
@@ -97,6 +106,25 @@
   .selection-info {
     font-size: 13px;
     color: var(--text2);
+  }
+
+  .collection-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .collection-controls select { min-width: 140px; }
+
+  .btn-icon {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    line-height: 1;
   }
 
   /* Art grid */
@@ -231,55 +259,25 @@
     color: var(--text2);
   }
 
-  .upload-preview select {
-    background: var(--surface2);
-    color: var(--text);
-    border: 1px solid var(--border);
-    padding: 6px 10px;
-    border-radius: var(--radius);
-    font-size: 13px;
-  }
-
-  /* Settings panel */
-  .settings-panel {
-    display: none;
-    margin: 0 32px 24px;
-    padding: 20px;
-    background: var(--surface);
-    border-radius: var(--radius);
-    border: 1px solid var(--border);
-  }
-
-  .settings-panel.active { display: block; }
-
-  .settings-panel h3 {
-    font-size: 15px;
-    margin-bottom: 16px;
-  }
-
-  .setting-row {
+  .upload-matte-row {
     display: flex;
+    gap: 12px;
     align-items: center;
-    gap: 16px;
-    margin-bottom: 14px;
   }
 
-  .setting-row label {
-    min-width: 140px;
-    font-size: 13px;
-    color: var(--text2);
+  .upload-matte-preview {
+    width: 80px;
+    height: 50px;
+    border-radius: 4px;
+    overflow: hidden;
+    flex-shrink: 0;
   }
 
-  .setting-row input[type="range"] {
-    flex: 1;
-    max-width: 300px;
-    accent-color: var(--accent);
-  }
-
-  .setting-row .range-value {
-    font-size: 13px;
-    min-width: 30px;
-    color: var(--text);
+  .upload-matte-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
   }
 
   /* Detail panel (matte chooser) */
@@ -315,26 +313,99 @@
     margin-bottom: 16px;
   }
 
-  .matte-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
+  .detail-collections {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
     margin-bottom: 16px;
   }
 
-  .matte-option {
-    padding: 8px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
+  .collection-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    background: rgba(74,158,255,0.15);
+    color: var(--accent);
+    border-radius: 12px;
     font-size: 11px;
-    text-align: center;
-    cursor: pointer;
-    transition: border-color 0.15s;
-    word-break: break-word;
   }
 
-  .matte-option:hover { border-color: #555; }
-  .matte-option.active { border-color: var(--accent); background: rgba(74,158,255,0.1); }
+  .collection-badge .remove-badge {
+    cursor: pointer;
+    opacity: 0.6;
+    font-size: 13px;
+    line-height: 1;
+  }
+
+  .collection-badge .remove-badge:hover { opacity: 1; }
+
+  .matte-section h4 {
+    font-size: 13px;
+    margin-bottom: 8px;
+    color: var(--text2);
+  }
+
+  .matte-type-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .matte-type-btn {
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 12px;
+    cursor: pointer;
+    background: var(--surface2);
+    color: var(--text2);
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .matte-type-btn:hover { border-color: #555; }
+  .matte-type-btn.active { border-color: var(--accent); color: var(--text); background: rgba(74,158,255,0.1); }
+
+  .matte-color-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .color-swatch {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.15s;
+    position: relative;
+  }
+
+  .color-swatch:hover { transform: scale(1.1); }
+  .color-swatch.active { border-color: var(--accent); border-width: 3px; }
+
+  .color-swatch .swatch-label {
+    position: absolute;
+    bottom: -16px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 9px;
+    color: var(--text2);
+    white-space: nowrap;
+  }
+
+  .matte-preview-box {
+    margin-bottom: 16px;
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition: all 0.2s;
+  }
+
+  .matte-preview-box img {
+    width: 100%;
+    display: block;
+  }
 
   .detail-actions {
     display: flex;
@@ -363,6 +434,45 @@
   }
 
   .overlay.active { display: block; }
+
+  /* Collection add dropdown */
+  .collection-dropdown {
+    position: relative;
+    display: inline-block;
+  }
+
+  .collection-dropdown-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    min-width: 180px;
+    z-index: 50;
+    padding: 4px 0;
+    margin-top: 4px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  }
+
+  .collection-dropdown-menu.open { display: block; }
+
+  .collection-dropdown-item {
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text);
+    transition: background 0.1s;
+  }
+
+  .collection-dropdown-item:hover { background: var(--surface2); }
+
+  .collection-dropdown-item.empty {
+    color: var(--text2);
+    font-style: italic;
+    cursor: default;
+  }
 
   /* Toast */
   .toast {
@@ -430,27 +540,8 @@
     <div class="header-controls">
       <span class="tv-status" id="tvStatus">Connecting...</span>
       <button id="btnArtMode" onclick="toggleArtMode()">Art Mode</button>
-      <button id="btnSettings" onclick="toggleSettings()">Settings</button>
     </div>
   </header>
-
-  <div class="settings-panel" id="settingsPanel">
-    <h3>Display Settings</h3>
-    <div class="setting-row">
-      <label>Brightness</label>
-      <input type="range" id="brightness" min="0" max="100" value="50"
-             oninput="document.getElementById('brightnessVal').textContent=this.value"
-             onchange="setSetting('brightness', this.value)">
-      <span class="range-value" id="brightnessVal">50</span>
-    </div>
-    <div class="setting-row">
-      <label>Color Temperature</label>
-      <input type="range" id="colorTemp" min="0" max="100" value="50"
-             oninput="document.getElementById('colorTempVal').textContent=this.value"
-             onchange="setSetting('color_temperature', this.value)">
-      <span class="range-value" id="colorTempVal">50</span>
-    </div>
-  </div>
 
   <div class="upload-zone" id="uploadZone">
     <h3>Upload Artwork</h3>
@@ -462,18 +553,12 @@
     <img id="previewImg" src="">
     <div class="upload-controls">
       <label>Matte Style</label>
-      <select id="uploadMatte">
-        <option value="none">None</option>
-        <option value="shadowbox_polar" selected>Shadow Box - Polar</option>
-        <option value="shadowbox_night">Shadow Box - Night</option>
-        <option value="shadowbox_sand">Shadow Box - Sand</option>
-        <option value="shadowbox_slate">Shadow Box - Slate</option>
-        <option value="modernthin_polar">Modern Thin - Polar</option>
-        <option value="modernthin_night">Modern Thin - Night</option>
-        <option value="modernthin_sand">Modern Thin - Sand</option>
-        <option value="modernthin_slate">Modern Thin - Slate</option>
-        <option value="none">No Matte</option>
-      </select>
+      <div class="upload-matte-row">
+        <select id="uploadMatte" onchange="updateUploadMattePreview()">
+          <option value="none">None</option>
+        </select>
+        <div class="upload-matte-preview" id="uploadMattePreview"></div>
+      </div>
       <div style="display:flex;gap:8px;margin-top:8px">
         <button class="primary" onclick="doUpload()">Upload to Frame</button>
         <button onclick="cancelUpload()">Cancel</button>
@@ -483,11 +568,21 @@
   </div>
 
   <div class="toolbar" id="toolbar">
+    <div class="collection-controls">
+      <select id="collectionFilter" onchange="filterByCollection(this.value)">
+        <option value="">All Artwork</option>
+      </select>
+      <button class="btn-icon" onclick="createCollection()" title="New collection">+</button>
+    </div>
     <button id="btnSelectMode" onclick="toggleSelectMode()">Select</button>
     <span class="selection-info" id="selectionInfo"></span>
     <div class="spacer"></div>
+    <div class="collection-dropdown" id="addToCollectionDropdown" style="display:none">
+      <button onclick="toggleCollectionDropdown()">Add to Collection</button>
+      <div class="collection-dropdown-menu" id="collectionDropdownMenu"></div>
+    </div>
     <button id="btnDeleteSelected" class="danger" style="display:none" onclick="deleteSelected()">Delete Selected</button>
-    <button onclick="loadArt()">Refresh</button>
+    <button onclick="refreshArt()">Refresh</button>
   </div>
 
   <div class="grid" id="artGrid"></div>
@@ -496,10 +591,16 @@
   <div class="detail-panel" id="detailPanel">
     <button class="detail-close" onclick="closeDetail()">&times;</button>
     <h3 id="detailTitle">Artwork Details</h3>
-    <img class="detail-thumb" id="detailThumb" src="">
+    <div class="matte-preview-box" id="mattePreviewBox">
+      <img id="detailThumb" src="">
+    </div>
     <div class="detail-info" id="detailInfo"></div>
-    <h4 style="font-size:13px;margin-bottom:8px;color:var(--text2)">Matte</h4>
-    <div class="matte-grid" id="matteGrid"></div>
+    <div class="detail-collections" id="detailCollections"></div>
+    <div class="matte-section">
+      <h4>Frame Style</h4>
+      <div class="matte-type-row" id="matteTypeRow"></div>
+      <div class="matte-color-row" id="matteColorRow"></div>
+    </div>
     <div class="detail-actions">
       <button class="primary" onclick="displayCurrent()">Display on Frame</button>
       <button class="danger" onclick="deleteCurrent()">Delete</button>
@@ -517,6 +618,26 @@
     let artModeOn = false;
     let mattes = null;
     let pendingFiles = [];
+    let collections = [];
+    let activeCollectionId = null;
+    const thumbCache = {};
+
+    const MATTE_COLORS = {
+      polar:      { bg: '#f5f0eb', border: '#e0d8ce', label: 'Polar' },
+      night:      { bg: '#1a1a1a', border: '#333',    label: 'Night' },
+      sand:       { bg: '#d4c5a9', border: '#bfb08e', label: 'Sand' },
+      slate:      { bg: '#6b7b8d', border: '#5a6a7c', label: 'Slate' },
+      warm_white: { bg: '#f5ede0', border: '#e0d5c5', label: 'Warm White' },
+    };
+
+    const MATTE_TYPES = {
+      none:       { padding: 0,  shadow: false, label: 'None' },
+      shadowbox:  { padding: 16, shadow: true,  label: 'Shadow Box' },
+      modernthin: { padding: 6,  shadow: false, label: 'Modern Thin' },
+    };
+
+    let selectedMatteType = 'none';
+    let selectedMatteColor = 'polar';
 
     // --- API helpers ---
 
@@ -569,30 +690,21 @@
         toast('Cannot connect to TV: ' + e.message);
       }
 
-      loadSettings();
       loadArt();
       loadMattes();
-    }
-
-    async function loadSettings() {
-      try {
-        const s = await api('/settings');
-        if (s.brightness != null) {
-          document.getElementById('brightness').value = s.brightness;
-          document.getElementById('brightnessVal').textContent = s.brightness;
-        }
-        if (s.color_temperature != null) {
-          document.getElementById('colorTemp').value = s.color_temperature;
-          document.getElementById('colorTempVal').textContent = s.color_temperature;
-        }
-      } catch {}
+      loadCollections();
     }
 
     async function loadMattes() {
       try {
         mattes = await api('/mattes');
-      } catch {}
+        populateUploadMatteSelect();
+      } catch {
+        populateUploadMatteSelect();
+      }
     }
+
+    // --- Art loading (cached) ---
 
     async function loadArt() {
       const grid = document.getElementById('artGrid');
@@ -602,6 +714,7 @@
         const data = await api('/art');
         artItems = data.items || [];
         currentId = data.current_id;
+        if (data.stale) toast('Showing cached data — TV unreachable');
         renderGrid();
         loadThumbnails();
       } catch (e) {
@@ -609,25 +722,65 @@
       }
     }
 
+    async function refreshArt() {
+      const grid = document.getElementById('artGrid');
+      try {
+        const data = await api('/art/refresh', { method: 'POST' });
+        artItems = data.items || [];
+        currentId = data.current_id;
+        const newCount = data.new_ids?.length || 0;
+        const removedCount = data.removed_ids?.length || 0;
+        renderGrid();
+        if (newCount > 0) loadThumbnails();
+        if (newCount || removedCount) {
+          toast(`${newCount} new, ${removedCount} removed`);
+        } else {
+          toast('No changes');
+        }
+      } catch (e) {
+        toast('Refresh failed: ' + e.message);
+      }
+    }
+
     function renderGrid() {
       const grid = document.getElementById('artGrid');
-      if (!artItems.length) {
-        grid.innerHTML = '<div class="empty-state"><h3>No artwork on Frame</h3><p>Upload some images to get started</p></div>';
+      const seen = new Set();
+      let items = artItems.filter(a => {
+        if (seen.has(a.content_id)) return false;
+        seen.add(a.content_id);
+        return true;
+      });
+
+      if (activeCollectionId) {
+        const col = collections.find(c => c.id === activeCollectionId);
+        if (col) {
+          const colIds = new Set(col.content_ids);
+          items = items.filter(a => colIds.has(a.content_id));
+        }
+      }
+
+      if (!items.length) {
+        const msg = activeCollectionId ? 'No artwork in this collection' : 'No artwork on Frame';
+        const sub = activeCollectionId ? 'Add artwork via Select mode' : 'Upload some images to get started';
+        grid.innerHTML = `<div class="empty-state"><h3>${msg}</h3><p>${sub}</p></div>`;
         return;
       }
 
-      grid.innerHTML = artItems.map(item => {
+      grid.innerHTML = items.map(item => {
         const id = item.content_id;
         const isCurrent = id === currentId;
         const isSelected = selectedIds.has(id);
         const category = item.category_id || '';
         const isMyPhoto = category.startsWith('MY-');
+        const cached = thumbCache[id];
         return `
           <div class="art-card ${isSelected ? 'selected' : ''} ${isCurrent ? 'current' : ''}"
                data-id="${id}" onclick="onCardClick('${id}', event)">
             <div class="checkbox">${isSelected ? '&#10003;' : ''}</div>
             ${isCurrent ? '<span class="current-badge">Displayed</span>' : ''}
-            <div class="thumb loading" id="thumb-${id}">Loading...</div>
+            ${cached
+              ? `<img class="thumb" id="thumb-${id}" src="${cached}">`
+              : `<div class="thumb loading" id="thumb-${id}">Loading...</div>`}
             <div class="info">
               <span>${isMyPhoto ? 'My Photo' : category}</span>
               <span>${item.content_id?.substring(0, 8) || ''}</span>
@@ -637,9 +790,17 @@
     }
 
     async function loadThumbnails() {
+      const seen = new Set();
+      const uncached = artItems.filter(a => {
+        if (thumbCache[a.content_id] || seen.has(a.content_id)) return false;
+        seen.add(a.content_id);
+        return true;
+      });
+      if (!uncached.length) return;
+
       const BATCH = 10;
-      for (let i = 0; i < artItems.length; i += BATCH) {
-        const batch = artItems.slice(i, i + BATCH);
+      for (let i = 0; i < uncached.length; i += BATCH) {
+        const batch = uncached.slice(i, i + BATCH);
         const ids = batch.map(a => a.content_id);
         try {
           const data = await api('/thumbnails', {
@@ -647,46 +808,52 @@
             body: { content_ids: ids },
           });
           for (const [name, b64] of Object.entries(data.thumbnails)) {
-            const cid = ids.find(id => name.startsWith(id)) || ids[Math.min(Object.keys(data.thumbnails).indexOf(name), ids.length - 1)];
-            for (const id of ids) {
-              const el = document.getElementById('thumb-' + id);
-              if (el && name.startsWith(id)) {
+            const dataUrl = 'data:image/jpeg;base64,' + b64;
+            const cid = ids.find(id => name.startsWith(id) || name === id);
+            if (cid) {
+              thumbCache[cid] = dataUrl;
+              const el = document.getElementById('thumb-' + cid);
+              if (el && el.classList?.contains('loading')) {
                 const img = document.createElement('img');
                 img.className = 'thumb';
-                img.src = 'data:image/jpeg;base64,' + b64;
+                img.src = dataUrl;
+                img.id = 'thumb-' + cid;
                 el.replaceWith(img);
-                img.id = 'thumb-' + id;
               }
             }
           }
-          // For any that didn't match by prefix, try sequential
-          const thumbEls = batch.map(a => document.getElementById('thumb-' + a.content_id));
+          // Sequential fallback for unmatched ids
           const thumbEntries = Object.entries(data.thumbnails);
           thumbEntries.forEach(([name, b64], idx) => {
-            if (idx < thumbEls.length && thumbEls[idx]?.classList?.contains('loading')) {
-              const img = document.createElement('img');
-              img.className = 'thumb';
-              img.src = 'data:image/jpeg;base64,' + b64;
-              img.id = thumbEls[idx].id;
-              thumbEls[idx].replaceWith(img);
+            if (idx < ids.length && !thumbCache[ids[idx]]) {
+              const dataUrl = 'data:image/jpeg;base64,' + b64;
+              thumbCache[ids[idx]] = dataUrl;
+              const el = document.getElementById('thumb-' + ids[idx]);
+              if (el && el.classList?.contains('loading')) {
+                const img = document.createElement('img');
+                img.className = 'thumb';
+                img.src = dataUrl;
+                img.id = 'thumb-' + ids[idx];
+                el.replaceWith(img);
+              }
             }
           });
         } catch {
-          // Fall back to individual thumbnails
           for (const id of ids) {
-            const el = document.getElementById('thumb-' + id);
-            if (el && el.classList.contains('loading')) {
-              try {
+            if (!thumbCache[id]) {
+              const el = document.getElementById('thumb-' + id);
+              if (el && el.classList?.contains('loading')) {
                 const img = document.createElement('img');
                 img.className = 'thumb';
                 img.src = '/api/thumbnail/' + id;
                 img.id = 'thumb-' + id;
                 el.replaceWith(img);
-              } catch {}
+              }
             }
           }
         }
       }
+      renderGrid();
     }
 
     // --- Card interactions ---
@@ -709,6 +876,7 @@
       document.getElementById('artGrid').classList.toggle('select-mode', selectMode);
       document.getElementById('btnSelectMode').textContent = selectMode ? 'Cancel' : 'Select';
       document.getElementById('btnDeleteSelected').style.display = selectMode ? '' : 'none';
+      document.getElementById('addToCollectionDropdown').style.display = selectMode ? '' : 'none';
       updateSelectionInfo();
       renderGrid();
     }
@@ -726,15 +894,15 @@
       if (!detailItem) return;
 
       document.getElementById('detailTitle').textContent = detailItem.category_id?.startsWith('MY-') ? 'My Photo' : 'Artwork';
-      const thumb = document.getElementById('thumb-' + id);
-      document.getElementById('detailThumb').src = thumb?.src || '';
+      const thumbSrc = thumbCache[id] || document.getElementById('thumb-' + id)?.src || '';
+      document.getElementById('detailThumb').src = thumbSrc;
       document.getElementById('detailInfo').innerHTML = `
         <div>ID: ${id}</div>
         <div>Category: ${detailItem.category_id || 'Unknown'}</div>
-        ${detailItem.matte_id ? `<div>Matte: ${detailItem.matte_id}</div>` : ''}
       `;
 
-      renderMattes(detailItem.matte_id);
+      renderDetailCollections(id);
+      initMatteSelector(detailItem.matte_id);
 
       document.getElementById('detailPanel').classList.add('active');
       document.getElementById('overlay').classList.add('active');
@@ -746,39 +914,150 @@
       detailItem = null;
     }
 
-    function renderMattes(currentMatte) {
-      const grid = document.getElementById('matteGrid');
-      const matteTypes = mattes?.matte_types || [
-        { matte_type_id: 'none' },
-        { matte_type_id: 'shadowbox_polar' },
-        { matte_type_id: 'shadowbox_night' },
-        { matte_type_id: 'shadowbox_sand' },
-        { matte_type_id: 'shadowbox_slate' },
-        { matte_type_id: 'modernthin_polar' },
-        { matte_type_id: 'modernthin_night' },
-        { matte_type_id: 'modernthin_sand' },
-        { matte_type_id: 'modernthin_slate' },
-      ];
-
-      grid.innerHTML = matteTypes.map(m => {
-        const id = m.matte_type_id || m.matte_id || 'none';
-        const label = id.replace(/_/g, ' ');
-        const isActive = id === (currentMatte || 'none');
-        return `<div class="matte-option ${isActive ? 'active' : ''}" onclick="setMatte('${id}')">${label}</div>`;
-      }).join('');
+    function renderDetailCollections(contentId) {
+      const container = document.getElementById('detailCollections');
+      const memberOf = collections.filter(c => c.content_ids.includes(contentId));
+      if (!memberOf.length) {
+        container.innerHTML = '';
+        return;
+      }
+      container.innerHTML = memberOf.map(c =>
+        `<span class="collection-badge">${c.name}<span class="remove-badge" onclick="removeFromCollectionDetail('${c.id}', '${contentId}')">&times;</span></span>`
+      ).join('');
     }
 
-    async function setMatte(matteId) {
+    // --- Matte selector (visual previews) ---
+
+    function parseMatteId(matteId) {
+      if (!matteId || matteId === 'none') return { type: 'none', color: 'polar' };
+      const parts = matteId.split('_');
+      const type = parts[0];
+      const color = parts.slice(1).join('_');
+      return { type: type || 'none', color: color || 'polar' };
+    }
+
+    function buildMatteId(type, color) {
+      if (type === 'none') return 'none';
+      return `${type}_${color}`;
+    }
+
+    function initMatteSelector(currentMatteId) {
+      const parsed = parseMatteId(currentMatteId);
+      selectedMatteType = parsed.type;
+      selectedMatteColor = parsed.color;
+      renderMatteTypeRow();
+      renderMatteColorRow();
+      updateMattePreview();
+    }
+
+    function renderMatteTypeRow() {
+      const row = document.getElementById('matteTypeRow');
+      const types = Object.entries(MATTE_TYPES);
+      row.innerHTML = types.map(([id, t]) =>
+        `<button class="matte-type-btn ${id === selectedMatteType ? 'active' : ''}" onclick="selectMatteType('${id}')">${t.label}</button>`
+      ).join('');
+    }
+
+    function renderMatteColorRow() {
+      const row = document.getElementById('matteColorRow');
+      if (selectedMatteType === 'none') {
+        row.innerHTML = '';
+        return;
+      }
+      row.innerHTML = Object.entries(MATTE_COLORS).map(([id, c]) =>
+        `<div class="color-swatch ${id === selectedMatteColor ? 'active' : ''}" style="background:${c.bg}" onclick="selectMatteColor('${id}')" title="${c.label}">
+          <span class="swatch-label">${c.label}</span>
+        </div>`
+      ).join('');
+    }
+
+    function updateMattePreview() {
+      const box = document.getElementById('mattePreviewBox');
+      const type = MATTE_TYPES[selectedMatteType] || MATTE_TYPES.none;
+      const color = MATTE_COLORS[selectedMatteColor] || MATTE_COLORS.polar;
+
+      if (selectedMatteType === 'none') {
+        box.style.padding = '0';
+        box.style.background = 'transparent';
+        box.style.boxShadow = 'none';
+      } else {
+        box.style.padding = type.padding + 'px';
+        box.style.background = color.bg;
+        box.style.boxShadow = type.shadow ? `inset 0 0 ${type.padding}px rgba(0,0,0,0.25)` : `inset 0 0 1px ${color.border}`;
+      }
+    }
+
+    function selectMatteType(type) {
+      selectedMatteType = type;
+      renderMatteTypeRow();
+      renderMatteColorRow();
+      updateMattePreview();
+      applyMatte();
+    }
+
+    function selectMatteColor(color) {
+      selectedMatteColor = color;
+      renderMatteColorRow();
+      updateMattePreview();
+      applyMatte();
+    }
+
+    async function applyMatte() {
       if (!detailItem) return;
+      const matteId = buildMatteId(selectedMatteType, selectedMatteColor);
       try {
         await api('/matte', { method: 'POST', body: { content_id: detailItem.content_id, matte_id: matteId } });
         detailItem.matte_id = matteId;
-        renderMattes(matteId);
         toast('Matte updated');
       } catch (e) {
         toast('Failed: ' + e.message);
       }
     }
+
+    // --- Upload matte select (dynamic) ---
+
+    function populateUploadMatteSelect() {
+      const sel = document.getElementById('uploadMatte');
+      const types = Object.entries(MATTE_TYPES);
+      const colors = Object.entries(MATTE_COLORS);
+
+      let html = '<option value="none">No Matte</option>';
+      for (const [typeId, type] of types) {
+        if (typeId === 'none') continue;
+        for (const [colorId, color] of colors) {
+          const value = `${typeId}_${colorId}`;
+          const selected = value === 'shadowbox_polar' ? ' selected' : '';
+          html += `<option value="${value}"${selected}>${type.label} — ${color.label}</option>`;
+        }
+      }
+      sel.innerHTML = html;
+    }
+
+    function updateUploadMattePreview() {
+      const sel = document.getElementById('uploadMatte');
+      const previewBox = document.getElementById('uploadMattePreview');
+      const previewImg = document.getElementById('previewImg');
+      const parsed = parseMatteId(sel.value);
+      const type = MATTE_TYPES[parsed.type] || MATTE_TYPES.none;
+      const color = MATTE_COLORS[parsed.color] || MATTE_COLORS.polar;
+
+      if (parsed.type === 'none') {
+        previewBox.style.padding = '0';
+        previewBox.style.background = 'transparent';
+        previewBox.style.boxShadow = 'none';
+      } else {
+        const scale = 0.4;
+        previewBox.style.padding = Math.round(type.padding * scale) + 'px';
+        previewBox.style.background = color.bg;
+        previewBox.style.boxShadow = type.shadow ? `inset 0 0 ${Math.round(type.padding * scale)}px rgba(0,0,0,0.25)` : 'none';
+      }
+
+      previewBox.innerHTML = previewImg.src
+        ? `<img src="${previewImg.src}" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:2px">`
+        : '';
+    }
+
+    // --- Actions ---
 
     async function displayCurrent() {
       if (!detailItem) return;
@@ -801,6 +1080,7 @@
       try {
         showLoading('Deleting...');
         await api('/delete', { method: 'POST', body: { content_ids: [detailItem.content_id] } });
+        delete thumbCache[detailItem.content_id];
         closeDetail();
         toast('Deleted');
         loadArt();
@@ -817,6 +1097,7 @@
       try {
         showLoading('Deleting...');
         await api('/delete', { method: 'POST', body: { content_ids: [...selectedIds] } });
+        for (const id of selectedIds) delete thumbCache[id];
         selectedIds.clear();
         toggleSelectMode();
         toast('Deleted');
@@ -849,16 +1130,85 @@
       }
     }
 
-    // --- Settings ---
+    // --- Collections ---
 
-    function toggleSettings() {
-      document.getElementById('settingsPanel').classList.toggle('active');
+    async function loadCollections() {
+      try {
+        const data = await api('/collections');
+        collections = data.collections || [];
+        renderCollectionFilter();
+      } catch {}
     }
 
-    async function setSetting(name, value) {
+    function renderCollectionFilter() {
+      const sel = document.getElementById('collectionFilter');
+      const prev = sel.value;
+      sel.innerHTML = '<option value="">All Artwork</option>' +
+        collections.map(c => `<option value="${c.id}">${c.name} (${c.content_ids.length})</option>`).join('');
+      if (prev && collections.find(c => c.id === prev)) sel.value = prev;
+    }
+
+    function filterByCollection(id) {
+      activeCollectionId = id || null;
+      renderGrid();
+    }
+
+    async function createCollection() {
+      const name = prompt('Collection name:');
+      if (!name?.trim()) return;
       try {
-        await api('/' + name, { method: 'POST', body: { value: parseInt(value) } });
-        toast(name.replace('_', ' ') + ' set to ' + value);
+        await api('/collections', { method: 'POST', body: { name: name.trim() } });
+        await loadCollections();
+        toast('Collection created');
+      } catch (e) {
+        toast('Failed: ' + e.message);
+      }
+    }
+
+    function toggleCollectionDropdown() {
+      const menu = document.getElementById('collectionDropdownMenu');
+      const isOpen = menu.classList.contains('open');
+
+      if (isOpen) {
+        menu.classList.remove('open');
+        return;
+      }
+
+      if (!collections.length) {
+        menu.innerHTML = '<div class="collection-dropdown-item empty">No collections yet</div>';
+      } else {
+        menu.innerHTML = collections.map(c =>
+          `<div class="collection-dropdown-item" onclick="addSelectedToCollection('${c.id}')">${c.name}</div>`
+        ).join('');
+      }
+      menu.classList.add('open');
+    }
+
+    async function addSelectedToCollection(collectionId) {
+      document.getElementById('collectionDropdownMenu').classList.remove('open');
+      if (!selectedIds.size) return;
+      try {
+        await api(`/collections/${collectionId}/items`, {
+          method: 'POST',
+          body: { content_ids: [...selectedIds] },
+        });
+        await loadCollections();
+        toast(`Added ${selectedIds.size} item(s) to collection`);
+      } catch (e) {
+        toast('Failed: ' + e.message);
+      }
+    }
+
+    async function removeFromCollectionDetail(collectionId, contentId) {
+      try {
+        await api(`/collections/${collectionId}/items`, {
+          method: 'DELETE',
+          body: { content_ids: [contentId] },
+        });
+        await loadCollections();
+        renderDetailCollections(contentId);
+        if (activeCollectionId) renderGrid();
+        toast('Removed from collection');
       } catch (e) {
         toast('Failed: ' + e.message);
       }
@@ -889,6 +1239,7 @@
         document.getElementById('uploadPreview').classList.add('active');
         document.getElementById('uploadStatus').textContent =
           pendingFiles.length > 1 ? `${pendingFiles.length} files selected` : file.name;
+        updateUploadMattePreview();
       };
       reader.readAsDataURL(file);
     }
@@ -925,6 +1276,14 @@
       toast(`Uploaded ${uploaded} file(s)`);
       loadArt();
     }
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', e => {
+      const dd = document.getElementById('addToCollectionDropdown');
+      if (!dd.contains(e.target)) {
+        document.getElementById('collectionDropdownMenu').classList.remove('open');
+      }
+    });
 
     // --- Start ---
     init();
