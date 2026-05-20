@@ -240,12 +240,58 @@
 
   .upload-preview.active { display: flex; gap: 20px; align-items: flex-start; }
 
-  .upload-preview img {
-    max-width: 300px;
-    max-height: 200px;
+  .upload-thumb-strip {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    max-width: 60%;
+    padding: 4px 0;
+    align-items: flex-start;
+    flex-shrink: 0;
+  }
+
+  .upload-thumb-item {
+    flex-shrink: 0;
+    width: 80px;
+    position: relative;
+    text-align: center;
+  }
+
+  .upload-thumb-item img {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
     border-radius: 4px;
-    object-fit: contain;
     background: #000;
+  }
+
+  .upload-thumb-item .thumb-name {
+    font-size: 10px;
+    color: var(--text2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 80px;
+    margin-top: 2px;
+  }
+
+  .upload-thumb-item .thumb-remove {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--danger);
+    color: #fff;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    padding: 0;
+    line-height: 1;
   }
 
   .upload-preview .upload-controls {
@@ -265,19 +311,89 @@
     align-items: center;
   }
 
-  .upload-matte-preview {
-    width: 80px;
-    height: 50px;
-    border-radius: 4px;
-    overflow: hidden;
-    flex-shrink: 0;
+  .upload-progress {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    justify-content: center;
+    min-width: 250px;
   }
 
-  .upload-matte-preview img {
+  .upload-progress .progress-label {
+    font-size: 13px;
+    color: var(--text);
+  }
+
+  .upload-progress .progress-sublabel {
+    font-size: 11px;
+    color: var(--text2);
+  }
+
+  .progress-bar-track {
     width: 100%;
+    height: 6px;
+    background: var(--surface2);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .progress-bar-fill {
     height: 100%;
-    object-fit: cover;
-    display: block;
+    background: var(--accent);
+    border-radius: 3px;
+    transition: width 0.15s;
+    width: 0%;
+  }
+
+  /* Detail panel title */
+  .detail-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .detail-title-wrap h3 {
+    margin-bottom: 0;
+    cursor: pointer;
+    border-bottom: 1px dashed transparent;
+    transition: border-color 0.15s;
+  }
+
+  .detail-title-wrap h3:hover {
+    border-bottom-color: var(--text2);
+  }
+
+  .detail-title-wrap .edit-icon {
+    font-size: 14px;
+    color: var(--text2);
+    cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 0.15s;
+  }
+
+  .detail-title-wrap:hover .edit-icon {
+    opacity: 1;
+  }
+
+  .detail-title-edit {
+    display: none;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+
+  .detail-title-edit input {
+    flex: 1;
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--accent);
+    padding: 6px 10px;
+    border-radius: var(--radius);
+    font-size: 16px;
+    font-weight: 600;
+    outline: none;
   }
 
   /* Detail panel (matte chooser) */
@@ -550,14 +666,13 @@
   </div>
 
   <div class="upload-preview" id="uploadPreview">
-    <img id="previewImg" src="">
-    <div class="upload-controls">
+    <div class="upload-thumb-strip" id="uploadThumbStrip"></div>
+    <div class="upload-controls" id="uploadControls">
       <label>Matte Style</label>
       <div class="upload-matte-row">
-        <select id="uploadMatte" onchange="updateUploadMattePreview()">
+        <select id="uploadMatte">
           <option value="none">None</option>
         </select>
-        <div class="upload-matte-preview" id="uploadMattePreview"></div>
       </div>
       <div style="display:flex;gap:8px;margin-top:8px">
         <button class="primary" onclick="doUpload()">Upload to Frame</button>
@@ -565,6 +680,7 @@
       </div>
       <p id="uploadStatus" style="font-size:12px;color:var(--text2);margin-top:4px"></p>
     </div>
+    <div class="upload-progress" id="uploadProgress" style="display:none"></div>
   </div>
 
   <div class="toolbar" id="toolbar">
@@ -590,7 +706,15 @@
   <div class="overlay" id="overlay" onclick="closeDetail()"></div>
   <div class="detail-panel" id="detailPanel">
     <button class="detail-close" onclick="closeDetail()">&times;</button>
-    <h3 id="detailTitle">Artwork Details</h3>
+    <div class="detail-title-wrap" id="detailTitleWrap">
+      <h3 id="detailTitle" onclick="startRename()">Artwork Details</h3>
+      <span class="edit-icon" onclick="startRename()">&#9998;</span>
+    </div>
+    <div class="detail-title-edit" id="detailTitleEdit">
+      <input type="text" id="detailTitleInput" onkeydown="onRenameKeydown(event)">
+      <button class="primary" onclick="saveRename()" style="padding:6px 10px">Save</button>
+      <button onclick="cancelRename()" style="padding:6px 10px">Cancel</button>
+    </div>
     <div class="matte-preview-box" id="mattePreviewBox">
       <img id="detailThumb" src="">
     </div>
@@ -621,6 +745,7 @@
     let collections = [];
     let activeCollectionId = null;
     const thumbCache = {};
+    let artworkMeta = {};
 
     const MATTE_COLORS = {
       polar:      { bg: '#f5f0eb', border: '#e0d8ce', label: 'Polar' },
@@ -693,6 +818,21 @@
       loadArt();
       loadMattes();
       loadCollections();
+      loadArtworkMeta();
+    }
+
+    async function loadArtworkMeta() {
+      try {
+        const data = await api('/artwork-meta');
+        artworkMeta = data.artwork || {};
+      } catch {}
+    }
+
+    function getArtworkTitle(item) {
+      const meta = artworkMeta[item.content_id];
+      if (meta?.title) return meta.title;
+      const category = item.category_id || '';
+      return category.startsWith('MY-') ? 'My Photo' : (category || 'Unknown');
     }
 
     async function loadMattes() {
@@ -770,8 +910,7 @@
         const id = item.content_id;
         const isCurrent = id === currentId;
         const isSelected = selectedIds.has(id);
-        const category = item.category_id || '';
-        const isMyPhoto = category.startsWith('MY-');
+        const title = getArtworkTitle(item);
         const cached = thumbCache[id];
         return `
           <div class="art-card ${isSelected ? 'selected' : ''} ${isCurrent ? 'current' : ''}"
@@ -782,7 +921,7 @@
               ? `<img class="thumb" id="thumb-${id}" src="${cached}">`
               : `<div class="thumb loading" id="thumb-${id}">Loading...</div>`}
             <div class="info">
-              <span>${isMyPhoto ? 'My Photo' : category}</span>
+              <span title="${title}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px">${title}</span>
               <span>${item.content_id?.substring(0, 8) || ''}</span>
             </div>
           </div>`;
@@ -893,7 +1032,7 @@
       detailItem = artItems.find(a => a.content_id === id);
       if (!detailItem) return;
 
-      document.getElementById('detailTitle').textContent = detailItem.category_id?.startsWith('MY-') ? 'My Photo' : 'Artwork';
+      renderDetailTitle(detailItem);
       const thumbSrc = thumbCache[id] || document.getElementById('thumb-' + id)?.src || '';
       document.getElementById('detailThumb').src = thumbSrc;
       document.getElementById('detailInfo').innerHTML = `
@@ -912,6 +1051,51 @@
       document.getElementById('detailPanel').classList.remove('active');
       document.getElementById('overlay').classList.remove('active');
       detailItem = null;
+    }
+
+    function renderDetailTitle(item) {
+      const title = getArtworkTitle(item);
+      document.getElementById('detailTitle').textContent = title;
+      document.getElementById('detailTitleWrap').style.display = '';
+      document.getElementById('detailTitleEdit').style.display = 'none';
+    }
+
+    function startRename() {
+      if (!detailItem) return;
+      document.getElementById('detailTitleInput').value = getArtworkTitle(detailItem);
+      document.getElementById('detailTitleWrap').style.display = 'none';
+      document.getElementById('detailTitleEdit').style.display = 'flex';
+      document.getElementById('detailTitleInput').focus();
+      document.getElementById('detailTitleInput').select();
+    }
+
+    function cancelRename() {
+      document.getElementById('detailTitleWrap').style.display = '';
+      document.getElementById('detailTitleEdit').style.display = 'none';
+    }
+
+    function onRenameKeydown(e) {
+      if (e.key === 'Enter') saveRename();
+      if (e.key === 'Escape') cancelRename();
+    }
+
+    async function saveRename() {
+      if (!detailItem) return;
+      const newTitle = document.getElementById('detailTitleInput').value.trim();
+      if (!newTitle) { toast('Title cannot be empty'); return; }
+      try {
+        await api(`/artwork-meta/${detailItem.content_id}`, {
+          method: 'PUT',
+          body: { title: newTitle },
+        });
+        artworkMeta[detailItem.content_id] = artworkMeta[detailItem.content_id] || {};
+        artworkMeta[detailItem.content_id].title = newTitle;
+        renderDetailTitle(detailItem);
+        renderGrid();
+        toast('Title updated');
+      } catch (e) {
+        toast('Failed: ' + e.message);
+      }
     }
 
     function renderDetailCollections(contentId) {
@@ -1034,27 +1218,7 @@
     }
 
     function updateUploadMattePreview() {
-      const sel = document.getElementById('uploadMatte');
-      const previewBox = document.getElementById('uploadMattePreview');
-      const previewImg = document.getElementById('previewImg');
-      const parsed = parseMatteId(sel.value);
-      const type = MATTE_TYPES[parsed.type] || MATTE_TYPES.none;
-      const color = MATTE_COLORS[parsed.color] || MATTE_COLORS.polar;
-
-      if (parsed.type === 'none') {
-        previewBox.style.padding = '0';
-        previewBox.style.background = 'transparent';
-        previewBox.style.boxShadow = 'none';
-      } else {
-        const scale = 0.4;
-        previewBox.style.padding = Math.round(type.padding * scale) + 'px';
-        previewBox.style.background = color.bg;
-        previewBox.style.boxShadow = type.shadow ? `inset 0 0 ${Math.round(type.padding * scale)}px rgba(0,0,0,0.25)` : 'none';
-      }
-
-      previewBox.innerHTML = previewImg.src
-        ? `<img src="${previewImg.src}" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:2px">`
-        : '';
+      // no-op: matte preview removed with single-image preview
     }
 
     // --- Actions ---
@@ -1081,6 +1245,7 @@
         showLoading('Deleting...');
         await api('/delete', { method: 'POST', body: { content_ids: [detailItem.content_id] } });
         delete thumbCache[detailItem.content_id];
+        delete artworkMeta[detailItem.content_id];
         closeDetail();
         toast('Deleted');
         loadArt();
@@ -1098,6 +1263,7 @@
         showLoading('Deleting...');
         await api('/delete', { method: 'POST', body: { content_ids: [...selectedIds] } });
         for (const id of selectedIds) delete thumbCache[id];
+        for (const id of selectedIds) delete artworkMeta[id];
         selectedIds.clear();
         toggleSelectMode();
         toast('Deleted');
@@ -1232,46 +1398,110 @@
     function handleFiles(files) {
       if (!files.length) return;
       pendingFiles = [...files];
-      const file = pendingFiles[0];
-      const reader = new FileReader();
-      reader.onload = e => {
-        document.getElementById('previewImg').src = e.target.result;
-        document.getElementById('uploadPreview').classList.add('active');
-        document.getElementById('uploadStatus').textContent =
-          pendingFiles.length > 1 ? `${pendingFiles.length} files selected` : file.name;
-        updateUploadMattePreview();
-      };
-      reader.readAsDataURL(file);
+      renderPendingFiles();
+    }
+
+    function renderPendingFiles() {
+      const strip = document.getElementById('uploadThumbStrip');
+      strip.innerHTML = '';
+      pendingFiles.forEach((file, idx) => {
+        const reader = new FileReader();
+        reader.onload = e => {
+          const item = document.createElement('div');
+          item.className = 'upload-thumb-item';
+          item.innerHTML = `
+            <button class="thumb-remove" onclick="removePendingFile(${idx})">&times;</button>
+            <img src="${e.target.result}">
+            <div class="thumb-name" title="${file.name}">${file.name}</div>
+          `;
+          strip.appendChild(item);
+        };
+        reader.readAsDataURL(file);
+      });
+      document.getElementById('uploadPreview').classList.add('active');
+      document.getElementById('uploadStatus').textContent =
+        `${pendingFiles.length} file${pendingFiles.length > 1 ? 's' : ''} selected`;
+    }
+
+    function removePendingFile(idx) {
+      pendingFiles.splice(idx, 1);
+      if (!pendingFiles.length) { cancelUpload(); return; }
+      renderPendingFiles();
     }
 
     function cancelUpload() {
       pendingFiles = [];
       document.getElementById('uploadPreview').classList.remove('active');
+      document.getElementById('uploadThumbStrip').style.display = '';
+      document.getElementById('uploadControls').style.display = '';
+      document.getElementById('uploadProgress').style.display = 'none';
       fileInput.value = '';
+    }
+
+    function uploadFileWithProgress(file, matte, onProgress) {
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const form = new FormData();
+        form.append('file', file);
+        form.append('matte', matte);
+        form.append('filename', file.name);
+
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) onProgress((e.loaded / e.total) * 100);
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try { resolve(JSON.parse(xhr.responseText)); }
+            catch { resolve({}); }
+          } else {
+            reject(new Error(xhr.statusText || 'Upload failed'));
+          }
+        };
+
+        xhr.onerror = () => reject(new Error('Network error'));
+        xhr.open('POST', '/api/upload');
+        xhr.send(form);
+      });
     }
 
     async function doUpload() {
       if (!pendingFiles.length) return;
       const matte = document.getElementById('uploadMatte').value;
-      const status = document.getElementById('uploadStatus');
 
-      showLoading(`Uploading ${pendingFiles.length} file(s)...`);
+      document.getElementById('uploadThumbStrip').style.display = 'none';
+      document.getElementById('uploadControls').style.display = 'none';
+      const progressDiv = document.getElementById('uploadProgress');
+      progressDiv.style.display = 'flex';
+      progressDiv.innerHTML = `
+        <div class="progress-label" id="progressLabel">Preparing upload...</div>
+        <div class="progress-bar-track"><div class="progress-bar-fill" id="progressBar"></div></div>
+        <div class="progress-sublabel" id="progressSublabel"></div>
+        <button onclick="cancelUpload()">Cancel</button>
+      `;
 
       let uploaded = 0;
+      const total = pendingFiles.length;
+
       for (const file of pendingFiles) {
+        document.getElementById('progressLabel').textContent =
+          `Uploading ${uploaded + 1} of ${total}: ${file.name}`;
+        document.getElementById('progressBar').style.width = '0%';
+
         try {
-          const form = new FormData();
-          form.append('file', file);
-          form.append('matte', matte);
-          await api('/upload', { method: 'POST', body: form });
+          const result = await uploadFileWithProgress(file, matte, (pct) => {
+            document.getElementById('progressBar').style.width = pct + '%';
+            document.getElementById('progressSublabel').textContent = Math.round(pct) + '%';
+          });
           uploaded++;
-          status.textContent = `Uploaded ${uploaded}/${pendingFiles.length}`;
+          if (result.content_id && result.title) {
+            artworkMeta[result.content_id] = { title: result.title };
+          }
         } catch (e) {
           toast(`Failed to upload ${file.name}: ${e.message}`);
         }
       }
 
-      hideLoading();
       cancelUpload();
       toast(`Uploaded ${uploaded} file(s)`);
       loadArt();

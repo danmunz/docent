@@ -23,6 +23,7 @@ TOKEN_FILE = Path(__file__).parent / ".tv-token"
 CACHE_DIR = Path(__file__).parent / ".cache"
 THUMB_DIR = CACHE_DIR / "thumbnails"
 COLLECTIONS_FILE = Path(__file__).parent / "collections.json"
+ARTWORK_META_FILE = Path(__file__).parent / "artwork_meta.json"
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("frame-art-manager")
@@ -276,6 +277,7 @@ async def select_art(body: dict):
 async def upload_art(
     file: UploadFile = File(...),
     matte: str = Form("shadowbox_polar"),
+    filename: str = Form(""),
 ):
     data = await file.read()
     ext = Path(file.filename or "image.jpg").suffix.lstrip(".").lower()
@@ -288,12 +290,20 @@ async def upload_art(
         data = buf.getvalue()
         ext = "jpg"
 
+    original_name = filename.strip() or Path(file.filename or "image.jpg").stem
+
     tv = get_tv()
     art = art_connection(tv)
     try:
         content_id = art.upload(data, matte=matte, file_type=ext)
         _invalidate_art_cache()
-        return {"ok": True, "content_id": content_id}
+        meta = _load_artwork_meta()
+        meta["artwork"][content_id] = {
+            "title": original_name,
+            "uploaded_at": datetime.now(timezone.utc).isoformat(),
+        }
+        _save_artwork_meta(meta)
+        return {"ok": True, "content_id": content_id, "title": original_name}
     finally:
         tv.close()
 
@@ -312,6 +322,10 @@ async def delete_art(body: dict):
         for cid in content_ids:
             (THUMB_DIR / f"{cid}.jpg").unlink(missing_ok=True)
         _invalidate_art_cache()
+        meta = _load_artwork_meta()
+        for cid in content_ids:
+            meta["artwork"].pop(cid, None)
+        _save_artwork_meta(meta)
         return {"ok": ok}
     finally:
         tv.close()
@@ -513,6 +527,36 @@ async def remove_from_collection(collection_id: str, body: dict):
             _save_collections(data)
             return c
     raise HTTPException(404, "Collection not found")
+
+
+# --- Artwork metadata ---
+
+def _load_artwork_meta() -> dict:
+    if ARTWORK_META_FILE.exists():
+        return json.loads(ARTWORK_META_FILE.read_text())
+    return {"artwork": {}}
+
+
+def _save_artwork_meta(data: dict) -> None:
+    ARTWORK_META_FILE.write_text(json.dumps(data, indent=2))
+
+
+@app.get("/api/artwork-meta")
+async def get_artwork_meta():
+    return _load_artwork_meta()
+
+
+@app.put("/api/artwork-meta/{content_id}")
+async def update_artwork_meta(content_id: str, body: dict):
+    title = body.get("title", "").strip()
+    if not title:
+        raise HTTPException(400, "title required")
+    data = _load_artwork_meta()
+    if content_id not in data["artwork"]:
+        data["artwork"][content_id] = {}
+    data["artwork"][content_id]["title"] = title
+    _save_artwork_meta(data)
+    return {"ok": True, "content_id": content_id, "meta": data["artwork"][content_id]}
 
 
 def main():
