@@ -187,6 +187,18 @@
     text-transform: uppercase;
   }
 
+  .art-card .aspect-badge {
+    position: absolute;
+    bottom: 36px;
+    left: 6px;
+    background: rgba(0,0,0,0.7);
+    color: #ccc;
+    font-size: 10px;
+    font-weight: 500;
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+
   .art-card .checkbox {
     position: absolute;
     top: 8px;
@@ -292,6 +304,28 @@
     border: none;
     padding: 0;
     line-height: 1;
+  }
+
+  .compliance-badge {
+    position: absolute;
+    bottom: 20px;
+    left: 2px;
+    font-size: 9px;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 3px;
+    white-space: nowrap;
+    line-height: 1.4;
+  }
+
+  .compliance-ok {
+    background: rgba(68, 204, 102, 0.85);
+    color: #000;
+  }
+
+  .compliance-warn {
+    background: rgba(255, 180, 0, 0.9);
+    color: #000;
   }
 
   .upload-preview .upload-controls {
@@ -414,15 +448,6 @@
 
   .detail-panel h3 { margin-bottom: 16px; font-size: 16px; }
 
-  .detail-panel .detail-thumb {
-    width: 100%;
-    aspect-ratio: 16/9;
-    object-fit: contain;
-    background: #000;
-    border-radius: var(--radius);
-    margin-bottom: 16px;
-  }
-
   .detail-panel .detail-info {
     font-size: 13px;
     color: var(--text2);
@@ -516,11 +541,15 @@
     border-radius: var(--radius);
     overflow: hidden;
     transition: all 0.2s;
+    aspect-ratio: 16/9;
+    background: #000;
   }
 
   .matte-preview-box img {
     width: 100%;
+    height: 100%;
     display: block;
+    object-fit: contain;
   }
 
   .detail-actions {
@@ -648,6 +677,92 @@
   }
 
   .empty-state h3 { color: var(--text); margin-bottom: 8px; }
+
+  .crop-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .crop-modal.active { display: flex; }
+
+  .crop-modal-content {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 700px;
+    width: 95vw;
+  }
+
+  .crop-modal-content h3 {
+    margin-bottom: 16px;
+    font-size: 16px;
+  }
+
+  .crop-queue-indicator {
+    font-size: 12px;
+    color: var(--text2);
+    margin-bottom: 8px;
+  }
+
+  .crop-canvas-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16/9;
+    background: #000;
+    border-radius: var(--radius);
+    overflow: hidden;
+    cursor: grab;
+    margin-bottom: 16px;
+  }
+
+  .crop-canvas-wrap:active { cursor: grabbing; }
+
+  .crop-canvas-wrap canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .crop-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .crop-controls label {
+    font-size: 13px;
+    color: var(--text2);
+  }
+
+  .crop-controls input[type="range"] {
+    flex: 1;
+    accent-color: var(--accent);
+  }
+
+  .crop-controls span {
+    font-size: 13px;
+    color: var(--text2);
+    min-width: 40px;
+  }
+
+  .crop-info {
+    font-size: 12px;
+    color: var(--text2);
+    margin-bottom: 16px;
+  }
+
+  .crop-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
 </style>
 </head>
 <body>
@@ -733,6 +848,29 @@
 
   <div class="toast" id="toast"></div>
 
+  <div class="crop-modal" id="cropModal">
+    <div class="crop-modal-content">
+      <div class="crop-queue-indicator" id="cropQueueIndicator"></div>
+      <h3>Adjust Image &mdash; <span id="cropFileName"></span></h3>
+      <div class="crop-canvas-wrap" id="cropCanvasWrap">
+        <canvas id="cropCanvas"></canvas>
+      </div>
+      <div class="crop-controls">
+        <label>Zoom</label>
+        <input type="range" id="cropZoom" min="100" max="400" value="100" oninput="onCropZoom(this.value)">
+        <span id="cropZoomLabel">100%</span>
+      </div>
+      <div class="crop-info" id="cropInfo"></div>
+      <div class="crop-actions">
+        <button class="primary" onclick="applyCrop()">Apply Crop</button>
+        <button onclick="autoCrop()">Auto-fit</button>
+        <button onclick="skipCropFile()">Skip (upload as-is)</button>
+        <button onclick="removeCropFile()">Remove</button>
+        <button onclick="closeCropModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     let artItems = [];
     let currentId = null;
@@ -742,23 +880,34 @@
     let artModeOn = false;
     let mattes = null;
     let pendingFiles = [];
+    let pendingAnalysis = [];
     let collections = [];
     let activeCollectionId = null;
     const thumbCache = {};
     let artworkMeta = {};
 
     const MATTE_COLORS = {
-      polar:      { bg: '#f5f0eb', border: '#e0d8ce', label: 'Polar' },
-      night:      { bg: '#1a1a1a', border: '#333',    label: 'Night' },
-      sand:       { bg: '#d4c5a9', border: '#bfb08e', label: 'Sand' },
-      slate:      { bg: '#6b7b8d', border: '#5a6a7c', label: 'Slate' },
-      warm_white: { bg: '#f5ede0', border: '#e0d5c5', label: 'Warm White' },
+      polar:    { bg: '#f5f0eb', border: '#e0d8ce', label: 'Polar' },
+      warm:     { bg: '#f5ede0', border: '#e0d5c5', label: 'Warm' },
+      sand:     { bg: '#d4c5a9', border: '#bfb08e', label: 'Sand' },
+      neutral:  { bg: '#898886', border: '#7a7977', label: 'Neutral' },
+      antique:  { bg: '#c4a882', border: '#b09570', label: 'Antique' },
+      black:    { bg: '#222221', border: '#333',    label: 'Black' },
+      navy:     { bg: '#1a2744', border: '#2a3754', label: 'Navy' },
+      burgandy: { bg: '#5c1a2a', border: '#6c2a3a', label: 'Burgundy' },
+      sage:     { bg: '#7a8c6e', border: '#6a7c5e', label: 'Sage' },
+      apricot:  { bg: '#e8a87c', border: '#d89868', label: 'Apricot' },
+      seafoam:  { bg: '#7fbfb0', border: '#6aafa0', label: 'Seafoam' },
     };
 
     const MATTE_TYPES = {
       none:       { padding: 0,  shadow: false, label: 'None' },
       shadowbox:  { padding: 16, shadow: true,  label: 'Shadow Box' },
       modernthin: { padding: 6,  shadow: false, label: 'Modern Thin' },
+      modern:     { padding: 10, shadow: false, label: 'Modern' },
+      modernwide: { padding: 20, shadow: false, label: 'Modern Wide' },
+      flexible:   { padding: 12, shadow: false, label: 'Flexible' },
+      panoramic:  { padding: 8,  shadow: false, label: 'Panoramic' },
     };
 
     let selectedMatteType = 'none';
@@ -833,6 +982,17 @@
       if (meta?.title) return meta.title;
       const category = item.category_id || '';
       return category.startsWith('MY-') ? 'My Photo' : (category || 'Unknown');
+    }
+
+    function getAspectLabel(ratio) {
+      const common = [
+        [16/9, '16:9'], [4/3, '4:3'], [3/2, '3:2'], [1, '1:1'],
+        [5/4, '5:4'], [21/9, '21:9'], [9/16, '9:16'], [2/3, '2:3'], [3/4, '3:4'],
+      ];
+      for (const [r, label] of common) {
+        if (Math.abs(ratio - r) < 0.02) return label;
+      }
+      return ratio > 1 ? ratio.toFixed(2) + ':1' : '1:' + (1/ratio).toFixed(2);
     }
 
     async function loadMattes() {
@@ -912,11 +1072,20 @@
         const isSelected = selectedIds.has(id);
         const title = getArtworkTitle(item);
         const cached = thumbCache[id];
+        const meta = artworkMeta[id];
+        let aspectBadge = '';
+        if (meta && meta.width && meta.height) {
+          const ar = meta.width / meta.height;
+          if (Math.abs(ar - 16/9) > 0.01) {
+            aspectBadge = `<span class="aspect-badge">${getAspectLabel(ar)}</span>`;
+          }
+        }
         return `
           <div class="art-card ${isSelected ? 'selected' : ''} ${isCurrent ? 'current' : ''}"
                data-id="${id}" onclick="onCardClick('${id}', event)">
             <div class="checkbox">${isSelected ? '&#10003;' : ''}</div>
             ${isCurrent ? '<span class="current-badge">Displayed</span>' : ''}
+            ${aspectBadge}
             ${cached
               ? `<img class="thumb" id="thumb-${id}" src="${cached}">`
               : `<div class="thumb loading" id="thumb-${id}">Loading...</div>`}
@@ -1186,16 +1355,20 @@
       applyMatte();
     }
 
+    let _matteDebounce = null;
     async function applyMatte() {
       if (!detailItem) return;
-      const matteId = buildMatteId(selectedMatteType, selectedMatteColor);
-      try {
-        await api('/matte', { method: 'POST', body: { content_id: detailItem.content_id, matte_id: matteId } });
-        detailItem.matte_id = matteId;
-        toast('Matte updated');
-      } catch (e) {
-        toast('Failed: ' + e.message);
-      }
+      clearTimeout(_matteDebounce);
+      _matteDebounce = setTimeout(async () => {
+        const matteId = buildMatteId(selectedMatteType, selectedMatteColor);
+        try {
+          await api('/matte', { method: 'POST', body: { content_id: detailItem.content_id, matte_id: matteId } });
+          detailItem.matte_id = matteId;
+          toast('Matte updated');
+        } catch (e) {
+          toast('Failed: ' + e.message);
+        }
+      }, 500);
     }
 
     // --- Upload matte select (dynamic) ---
@@ -1398,7 +1571,265 @@
     function handleFiles(files) {
       if (!files.length) return;
       pendingFiles = [...files];
+      pendingAnalysis = new Array(pendingFiles.length).fill(null);
       renderPendingFiles();
+      pendingFiles.forEach((file, idx) => {
+        analyzeImage(file).then(analysis => {
+          pendingAnalysis[idx] = analysis;
+          const badge = document.getElementById('compBadge_' + idx);
+          if (badge) {
+            badge.innerHTML = getComplianceBadgeHTML(analysis);
+            badge.className = 'compliance-badge ' + (analysis.compliant ? 'compliance-ok' : 'compliance-warn');
+          }
+        });
+      });
+    }
+
+    function analyzeImage(file) {
+      return new Promise(resolve => {
+        const img = new Image();
+        img.onload = () => {
+          const w = img.naturalWidth, h = img.naturalHeight;
+          const aspect = w / h;
+          const target = 16 / 9;
+          const issues = [];
+          if (Math.abs(aspect - target) > 0.01) issues.push('not-16:9');
+          if (w < 3840 || h < 2160) issues.push('low-res');
+          if (w > 3840) issues.push('oversized');
+          resolve({ width: w, height: h, aspect, compliant: issues.length === 0, issues });
+          URL.revokeObjectURL(img.src);
+        };
+        img.onerror = () => resolve({ width: 0, height: 0, aspect: 0, compliant: false, issues: ['unreadable'] });
+        img.src = URL.createObjectURL(file);
+      });
+    }
+
+    function getComplianceBadgeHTML(analysis) {
+      if (analysis.compliant) return '\u2713';
+      const labels = [];
+      if (analysis.issues.includes('not-16:9')) labels.push('Not 16:9');
+      if (analysis.issues.includes('low-res')) labels.push('Low res');
+      if (analysis.issues.includes('oversized')) labels.push('Large');
+      return '\u26A0 ' + labels.join(', ');
+    }
+
+    // --- Crop Editor ---
+    let cropState = { file: null, img: null, zoom: 1, offsetX: 0, offsetY: 0, dragging: false, dragStartX: 0, dragStartY: 0, fileIndex: -1 };
+    let cropQueue = [];
+    let cropQueueIndex = 0;
+    let cropResolve = null;
+
+    function openCropModal(fileIndex) {
+      const file = pendingFiles[fileIndex];
+      if (!file) return;
+      cropState.fileIndex = fileIndex;
+      cropState.file = file;
+      cropState.zoom = 1;
+      cropState.offsetX = 0;
+      cropState.offsetY = 0;
+      document.getElementById('cropFileName').textContent = file.name;
+      const img = new Image();
+      img.onload = () => {
+        cropState.img = img;
+        autoCrop();
+        document.getElementById('cropModal').classList.add('active');
+        requestAnimationFrame(() => {
+          setupCropCanvas();
+          drawCropCanvas();
+          updateCropInfo();
+        });
+      };
+      img.src = URL.createObjectURL(file);
+    }
+
+    function closeCropModal() {
+      document.getElementById('cropModal').classList.remove('active');
+      if (cropState.img) URL.revokeObjectURL(cropState.img.src);
+      cropState.img = null;
+      if (cropResolve) { cropResolve('cancel'); cropResolve = null; }
+    }
+
+    function setupCropCanvas() {
+      const canvas = document.getElementById('cropCanvas');
+      const wrap = document.getElementById('cropCanvasWrap');
+      canvas.width = wrap.clientWidth * (window.devicePixelRatio || 1);
+      canvas.height = Math.round(canvas.width * 9 / 16);
+
+      canvas.onmousedown = e => { cropState.dragging = true; cropState.dragStartX = e.clientX; cropState.dragStartY = e.clientY; };
+      canvas.onmousemove = e => {
+        if (!cropState.dragging) return;
+        const scale = getCropScale();
+        cropState.offsetX += (e.clientX - cropState.dragStartX) / scale;
+        cropState.offsetY += (e.clientY - cropState.dragStartY) / scale;
+        cropState.dragStartX = e.clientX;
+        cropState.dragStartY = e.clientY;
+        clampOffsets();
+        drawCropCanvas();
+      };
+      canvas.onmouseup = canvas.onmouseleave = () => { cropState.dragging = false; };
+
+      canvas.ontouchstart = e => { e.preventDefault(); const t = e.touches[0]; cropState.dragging = true; cropState.dragStartX = t.clientX; cropState.dragStartY = t.clientY; };
+      canvas.ontouchmove = e => {
+        if (!cropState.dragging) return;
+        const t = e.touches[0]; const scale = getCropScale();
+        cropState.offsetX += (t.clientX - cropState.dragStartX) / scale;
+        cropState.offsetY += (t.clientY - cropState.dragStartY) / scale;
+        cropState.dragStartX = t.clientX;
+        cropState.dragStartY = t.clientY;
+        clampOffsets();
+        drawCropCanvas();
+      };
+      canvas.ontouchend = () => { cropState.dragging = false; };
+
+      document.getElementById('cropZoom').value = Math.round(cropState.zoom * 100);
+      document.getElementById('cropZoomLabel').textContent = Math.round(cropState.zoom * 100) + '%';
+    }
+
+    function getCropScale() {
+      const canvas = document.getElementById('cropCanvas');
+      const wrap = document.getElementById('cropCanvasWrap');
+      return canvas.width / wrap.clientWidth;
+    }
+
+    function clampOffsets() {
+      const img = cropState.img;
+      if (!img) return;
+      const canvas = document.getElementById('cropCanvas');
+      const viewW = canvas.width, viewH = canvas.height;
+      const scaledW = img.naturalWidth * cropState.zoom;
+      const scaledH = img.naturalHeight * cropState.zoom;
+      const fitScale = Math.max(viewW / scaledW, viewH / scaledH);
+      const drawW = scaledW * fitScale, drawH = scaledH * fitScale;
+      const maxX = Math.max(0, (drawW - viewW) / 2 / fitScale / cropState.zoom);
+      const maxY = Math.max(0, (drawH - viewH) / 2 / fitScale / cropState.zoom);
+      cropState.offsetX = Math.max(-maxX, Math.min(maxX, cropState.offsetX));
+      cropState.offsetY = Math.max(-maxY, Math.min(maxY, cropState.offsetY));
+    }
+
+    function drawCropCanvas() {
+      const canvas = document.getElementById('cropCanvas');
+      const ctx = canvas.getContext('2d');
+      const img = cropState.img;
+      if (!img) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const viewW = canvas.width, viewH = canvas.height;
+      const scaledW = img.naturalWidth * cropState.zoom;
+      const scaledH = img.naturalHeight * cropState.zoom;
+      const fitScale = Math.max(viewW / scaledW, viewH / scaledH);
+      const drawW = scaledW * fitScale, drawH = scaledH * fitScale;
+      const dx = (viewW - drawW) / 2 + cropState.offsetX * fitScale * cropState.zoom;
+      const dy = (viewH - drawH) / 2 + cropState.offsetY * fitScale * cropState.zoom;
+      ctx.drawImage(img, dx, dy, drawW, drawH);
+    }
+
+    function onCropZoom(val) {
+      cropState.zoom = val / 100;
+      document.getElementById('cropZoomLabel').textContent = val + '%';
+      clampOffsets();
+      drawCropCanvas();
+      updateCropInfo();
+    }
+
+    function autoCrop() {
+      const img = cropState.img;
+      if (!img) return;
+      const imgAspect = img.naturalWidth / img.naturalHeight;
+      const targetAspect = 16 / 9;
+      if (imgAspect > targetAspect) {
+        cropState.zoom = 1;
+      } else {
+        cropState.zoom = targetAspect / imgAspect;
+      }
+      cropState.offsetX = 0;
+      cropState.offsetY = 0;
+      const slider = document.getElementById('cropZoom');
+      if (slider) {
+        slider.value = Math.round(cropState.zoom * 100);
+        document.getElementById('cropZoomLabel').textContent = Math.round(cropState.zoom * 100) + '%';
+      }
+      clampOffsets();
+      drawCropCanvas();
+      updateCropInfo();
+    }
+
+    function updateCropInfo() {
+      const img = cropState.img;
+      if (!img) return;
+      const info = document.getElementById('cropInfo');
+      info.textContent = `Source: ${img.naturalWidth}\u00d7${img.naturalHeight} \u2022 Output: 3840\u00d72160 (16:9)`;
+    }
+
+    function applyCrop() {
+      const img = cropState.img;
+      if (!img) return;
+      const outW = 3840, outH = 2160;
+      const viewCanvas = document.getElementById('cropCanvas');
+      const viewW = viewCanvas.width, viewH = viewCanvas.height;
+      const scaledW = img.naturalWidth * cropState.zoom;
+      const scaledH = img.naturalHeight * cropState.zoom;
+      const fitScale = Math.max(viewW / scaledW, viewH / scaledH);
+      const drawW = scaledW * fitScale, drawH = scaledH * fitScale;
+      const dx = (viewW - drawW) / 2 + cropState.offsetX * fitScale * cropState.zoom;
+      const dy = (viewH - drawH) / 2 + cropState.offsetY * fitScale * cropState.zoom;
+      const srcX = -dx / drawW * img.naturalWidth;
+      const srcY = -dy / drawH * img.naturalHeight;
+      const srcW = viewW / drawW * img.naturalWidth;
+      const srcH = viewH / drawH * img.naturalHeight;
+
+      const offscreen = document.createElement('canvas');
+      offscreen.width = outW;
+      offscreen.height = outH;
+      const ctx = offscreen.getContext('2d');
+      ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, outW, outH);
+      offscreen.toBlob(blob => {
+        if (!blob) { toast('Crop failed'); return; }
+        const name = cropState.file.name.replace(/\.[^.]+$/, '') + '_cropped.jpg';
+        const croppedFile = new File([blob], name, { type: 'image/jpeg' });
+        pendingFiles[cropState.fileIndex] = croppedFile;
+        pendingAnalysis[cropState.fileIndex] = { width: outW, height: outH, aspect: 16/9, compliant: true, issues: [] };
+        renderPendingFiles();
+        document.getElementById('cropModal').classList.remove('active');
+        if (cropResolve) { cropResolve('cropped'); cropResolve = null; }
+        else advanceCropQueue();
+      }, 'image/jpeg', 0.95);
+    }
+
+    function skipCropFile() {
+      document.getElementById('cropModal').classList.remove('active');
+      if (cropResolve) { cropResolve('skip'); cropResolve = null; }
+      else advanceCropQueue();
+    }
+
+    function removeCropFile() {
+      const idx = cropState.fileIndex;
+      document.getElementById('cropModal').classList.remove('active');
+      pendingFiles.splice(idx, 1);
+      pendingAnalysis.splice(idx, 1);
+      cropQueue = cropQueue.filter(i => i !== idx).map(i => i > idx ? i - 1 : i);
+      cropQueueIndex = Math.min(cropQueueIndex, cropQueue.length);
+      if (!pendingFiles.length) { cancelUpload(); return; }
+      renderPendingFiles();
+      if (cropResolve) { cropResolve('removed'); cropResolve = null; }
+      else advanceCropQueue();
+    }
+
+    function advanceCropQueue() {
+      cropQueueIndex++;
+      if (cropQueueIndex < cropQueue.length) {
+        updateQueueIndicator();
+        openCropModal(cropQueue[cropQueueIndex]);
+      } else {
+        doFinalUpload();
+      }
+    }
+
+    function updateQueueIndicator() {
+      const el = document.getElementById('cropQueueIndicator');
+      if (cropQueue.length > 1) {
+        el.textContent = `Image ${cropQueueIndex + 1} of ${cropQueue.length} needing adjustment`;
+      } else {
+        el.textContent = '';
+      }
     }
 
     function renderPendingFiles() {
@@ -1409,9 +1840,13 @@
         reader.onload = e => {
           const item = document.createElement('div');
           item.className = 'upload-thumb-item';
+          const a = pendingAnalysis[idx];
+          const badgeClass = a ? ('compliance-badge ' + (a.compliant ? 'compliance-ok' : 'compliance-warn')) : 'compliance-badge';
+          const badgeHTML = a ? getComplianceBadgeHTML(a) : '';
           item.innerHTML = `
             <button class="thumb-remove" onclick="removePendingFile(${idx})">&times;</button>
             <img src="${e.target.result}">
+            <span class="${badgeClass}" id="compBadge_${idx}">${badgeHTML}</span>
             <div class="thumb-name" title="${file.name}">${file.name}</div>
           `;
           strip.appendChild(item);
@@ -1425,12 +1860,14 @@
 
     function removePendingFile(idx) {
       pendingFiles.splice(idx, 1);
+      pendingAnalysis.splice(idx, 1);
       if (!pendingFiles.length) { cancelUpload(); return; }
       renderPendingFiles();
     }
 
     function cancelUpload() {
       pendingFiles = [];
+      pendingAnalysis = [];
       document.getElementById('uploadPreview').classList.remove('active');
       document.getElementById('uploadThumbStrip').style.display = '';
       document.getElementById('uploadControls').style.display = '';
@@ -1467,6 +1904,34 @@
 
     async function doUpload() {
       if (!pendingFiles.length) return;
+
+      // Wait for all analysis to complete
+      const waitStart = Date.now();
+      while (pendingAnalysis.some(a => a === null) && Date.now() - waitStart < 5000) {
+        await new Promise(r => setTimeout(r, 50));
+      }
+
+      const nonCompliant = [];
+      for (let i = 0; i < pendingFiles.length; i++) {
+        const a = pendingAnalysis[i];
+        if (a && !a.compliant && a.issues.includes('not-16:9')) {
+          nonCompliant.push(i);
+        }
+      }
+
+      if (nonCompliant.length > 0) {
+        cropQueue = nonCompliant;
+        cropQueueIndex = 0;
+        updateQueueIndicator();
+        openCropModal(cropQueue[0]);
+        return;
+      }
+
+      doFinalUpload();
+    }
+
+    async function doFinalUpload() {
+      if (!pendingFiles.length) { cancelUpload(); return; }
       const matte = document.getElementById('uploadMatte').value;
 
       document.getElementById('uploadThumbStrip').style.display = 'none';
@@ -1495,7 +1960,7 @@
           });
           uploaded++;
           if (result.content_id && result.title) {
-            artworkMeta[result.content_id] = { title: result.title };
+            artworkMeta[result.content_id] = { title: result.title, width: result.width, height: result.height };
           }
         } catch (e) {
           toast(`Failed to upload ${file.name}: ${e.message}`);

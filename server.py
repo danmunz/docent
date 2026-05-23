@@ -283,11 +283,22 @@ async def upload_art(
     ext = Path(file.filename or "image.jpg").suffix.lstrip(".").lower()
     if ext == "jpeg":
         ext = "jpg"
+
+    img = Image.open(io.BytesIO(data))
+    w, h = img.size
+
     if ext not in ("jpg", "png"):
-        img = Image.open(io.BytesIO(data))
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=95)
         data = buf.getvalue()
+        ext = "jpg"
+
+    if w > 3840 or h > 2160:
+        img.thumbnail((3840, 2160), Image.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=95)
+        data = buf.getvalue()
+        w, h = img.size
         ext = "jpg"
 
     original_name = filename.strip() or Path(file.filename or "image.jpg").stem
@@ -295,15 +306,18 @@ async def upload_art(
     tv = get_tv()
     art = art_connection(tv)
     try:
+        log.info("Uploading %s (%dx%d, ext=%s, matte=%s)", original_name, w, h, ext, matte)
         content_id = art.upload(data, matte=matte, file_type=ext)
         _invalidate_art_cache()
         meta = _load_artwork_meta()
         meta["artwork"][content_id] = {
             "title": original_name,
+            "width": w,
+            "height": h,
             "uploaded_at": datetime.now(timezone.utc).isoformat(),
         }
         _save_artwork_meta(meta)
-        return {"ok": True, "content_id": content_id, "title": original_name}
+        return {"ok": True, "content_id": content_id, "title": original_name, "width": w, "height": h}
     finally:
         tv.close()
 
@@ -352,8 +366,14 @@ async def change_matte(body: dict):
     tv = get_tv()
     art = art_connection(tv)
     try:
+        log.info("Changing matte: content_id=%s, matte_id=%s", content_id, matte_id)
         art.change_matte(content_id, matte_id)
         return {"ok": True}
+    except Exception as e:
+        err = str(e)
+        if "error number" in err:
+            raise HTTPException(422, f"TV rejected matte change — this image may not support that matte style")
+        raise
     finally:
         tv.close()
 
