@@ -4,4 +4,5 @@ __pycache__/
 .tv-token
 .cache/
 ai_config.json
+api_usage.json
 drive_sync.json

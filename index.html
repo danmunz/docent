@@ -18,6 +18,7 @@
     --danger: #d45454;
     --success: #6ab06a;
     --radius: 10px;
+    --thumb-size: 220px;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -118,6 +119,27 @@
 
   .collection-controls select { min-width: 140px; }
 
+  .zoom-control {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text2);
+  }
+  .zoom-control span {
+    font-size: 18px;
+    cursor: pointer;
+    user-select: none;
+    width: 22px;
+    text-align: center;
+    line-height: 1;
+  }
+  .zoom-control span:hover { color: var(--text); }
+  .zoom-control input[type="range"] {
+    width: 80px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+
   .btn-icon {
     width: 32px;
     height: 32px;
@@ -132,7 +154,7 @@
   /* Art grid */
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(var(--thumb-size), 1fr));
     gap: 16px;
     padding: 24px 32px;
   }
@@ -405,6 +427,24 @@
     width: 0%;
   }
 
+  .progress-bar-fill.pulsing {
+    animation: pulse-bar 1.5s ease-in-out infinite;
+    width: 100% !important;
+    opacity: 0.4;
+  }
+
+  @keyframes pulse-bar {
+    0%, 100% { opacity: 0.2; }
+    50% { opacity: 0.5; }
+  }
+
+  .progress-overall {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text2);
+  }
+
   /* Detail panel title */
   .detail-title-wrap {
     display: flex;
@@ -418,6 +458,9 @@
     cursor: pointer;
     border-bottom: 1px dashed transparent;
     transition: border-color 0.15s;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    min-width: 0;
   }
 
   .detail-title-wrap h3:hover {
@@ -714,6 +757,26 @@
 
   .empty-state h3 { color: var(--text); margin-bottom: 8px; font-family: Georgia, 'Times New Roman', serif; font-weight: 400; }
 
+  .group-header {
+    grid-column: 1 / -1;
+    padding: 20px 0 8px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .group-header:first-child { padding-top: 0; }
+  .group-header-label {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 16px;
+    color: var(--text);
+    font-weight: 400;
+  }
+  .group-header-count {
+    font-size: 12px;
+    color: var(--text2);
+  }
+
   .crop-modal {
     display: none;
     position: fixed;
@@ -994,6 +1057,35 @@
 
   .header-settings-btn:hover { color: var(--text); background: none; border: none; }
 
+  .settings-section {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+  }
+
+  .settings-section-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text2);
+    margin-bottom: 10px;
+  }
+
+  .settings-hint {
+    font-size: 11px;
+    color: var(--text2);
+    margin-top: 4px;
+    line-height: 1.4;
+  }
+
+  .ai-provenance {
+    font-size: 11px;
+    color: var(--text2);
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+  }
+
   /* Drive sync modal */
   .sync-modal {
     position: fixed;
@@ -1118,6 +1210,142 @@
     border-radius: 10px;
     margin-top: 4px;
   }
+
+  /* Atmosphere modal */
+  .header-atmosphere-btn {
+    background: none;
+    border: none;
+    color: var(--text2);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 4px 8px;
+    transition: color 0.15s;
+  }
+  .header-atmosphere-btn:hover { color: var(--text); background: none; border: none; }
+
+  .atmosphere-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.88);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.4s, visibility 0.4s;
+  }
+  .atmosphere-modal.active { opacity: 1; visibility: visible; }
+
+  .atmosphere-content {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    max-width: 480px;
+    width: 90vw;
+    text-align: center;
+  }
+
+  .atmosphere-weather {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    font-size: 14px;
+    color: var(--text2);
+  }
+  .atmosphere-weather .temp {
+    font-size: 24px;
+    color: var(--text);
+    font-family: Georgia, 'Times New Roman', serif;
+  }
+  .atmosphere-weather .desc { font-style: italic; }
+
+  .atmosphere-artwork-img {
+    width: 100%;
+    max-height: 280px;
+    object-fit: contain;
+    border-radius: 8px;
+    margin: 16px 0;
+    opacity: 0;
+    transform: scale(0.95);
+    transition: opacity 0.8s ease, transform 0.8s ease;
+  }
+  .atmosphere-artwork-img.revealed { opacity: 1; transform: scale(1); }
+
+  .atmosphere-title {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 16px;
+    font-weight: 400;
+    color: var(--text);
+    margin-top: 8px;
+    opacity: 0;
+    transition: opacity 0.6s ease 0.2s;
+  }
+  .atmosphere-title.revealed { opacity: 1; }
+
+  .atmosphere-note {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-style: italic;
+    font-size: 15px;
+    color: var(--text);
+    line-height: 1.6;
+    margin: 16px 0;
+    opacity: 0;
+    transition: opacity 0.6s ease 0.4s;
+  }
+  .atmosphere-note.revealed { opacity: 1; }
+
+  .atmosphere-vibes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+    margin: 12px 0;
+    opacity: 0;
+    transition: opacity 0.6s ease 0.6s;
+  }
+  .atmosphere-vibes.revealed { opacity: 1; }
+
+  .atmosphere-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 20px;
+    opacity: 0;
+    transition: opacity 0.4s ease 0.8s;
+  }
+  .atmosphere-actions.revealed { opacity: 1; }
+
+  .atmosphere-loading-text {
+    color: var(--text2);
+    font-size: 14px;
+    margin-top: 12px;
+    animation: atmospherePulse 2s ease-in-out infinite;
+  }
+  @keyframes atmospherePulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+
+  .atmosphere-location-input {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .atmosphere-location-input input {
+    flex: 1;
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    outline: none;
+  }
+  .atmosphere-location-input input:focus { border-color: var(--accent); }
 </style>
 </head>
 <body>
@@ -1126,6 +1354,7 @@
     <div class="header-controls">
       <span class="tv-status" id="tvStatus">Connecting...</span>
       <button onclick="openSyncModal()">Sync</button>
+      <button class="header-atmosphere-btn" onclick="openAtmosphere()" title="Atmosphere">&#9729;</button>
       <button class="header-settings-btn" onclick="openSettings()" title="AI Settings">&#9881;</button>
       <button id="btnArtMode" onclick="toggleArtMode()">Art Mode</button>
     </div>
@@ -1164,6 +1393,21 @@
     </div>
     <button id="btnSelectMode" onclick="toggleSelectMode()">Select</button>
     <span class="selection-info" id="selectionInfo"></span>
+    <div class="zoom-control">
+      <span onclick="zoomOut()" title="Smaller">&minus;</span>
+      <input type="range" id="zoomSlider" min="120" max="400" value="220" step="20"
+             oninput="setZoom(this.value)" title="Thumbnail size">
+      <span onclick="zoomIn()" title="Larger">+</span>
+    </div>
+    <select id="sortSelect" onchange="setSort(this.value)">
+      <option value="none">Unsorted</option>
+      <option value="title">Title</option>
+      <option value="artist">Artist</option>
+      <option value="year">Year</option>
+      <option value="school">School</option>
+      <option value="medium">Medium</option>
+      <option value="date_added">Date Added</option>
+    </select>
     <div class="spacer"></div>
     <div class="collection-dropdown" id="addToCollectionDropdown" style="display:none">
       <button onclick="toggleCollectionDropdown()">Add to Collection</button>
@@ -1264,28 +1508,122 @@
     </div>
   </div>
 
+  <div class="atmosphere-modal" id="atmosphereModal">
+    <div class="atmosphere-content">
+      <div id="atmosphereLoading" style="display:none">
+        <div class="spinner"></div>
+        <div class="atmosphere-loading-text" id="atmosphereLoadingText">Reading the atmosphere...</div>
+      </div>
+      <div id="atmosphereReveal" style="display:none">
+        <div class="atmosphere-weather" id="atmosphereWeather"></div>
+        <img class="atmosphere-artwork-img" id="atmosphereImg" src="">
+        <div class="atmosphere-title" id="atmosphereTitle"></div>
+        <div class="atmosphere-note" id="atmosphereNote"></div>
+        <div class="atmosphere-vibes" id="atmosphereVibes"></div>
+        <div class="atmosphere-actions" id="atmosphereActions">
+          <button class="primary" onclick="atmosphereDisplay()">Display on Frame</button>
+          <button onclick="atmosphereRetry()">Try Again</button>
+          <button onclick="closeAtmosphere()">Close</button>
+        </div>
+      </div>
+      <div id="atmosphereError" style="display:none">
+        <div style="color:var(--danger);margin-bottom:12px" id="atmosphereErrorMsg"></div>
+        <div class="atmosphere-location-input" id="atmosphereLocationFallback" style="display:none">
+          <input type="text" id="atmosphereLocationQuery" placeholder="Enter city or zip code">
+          <button onclick="atmosphereGeocode()">Search</button>
+        </div>
+        <div style="margin-top:12px">
+          <button onclick="closeAtmosphere()">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="settings-modal" id="settingsModal">
     <div class="settings-content">
       <h3>AI Settings</h3>
-      <div class="settings-group">
-        <label>Claude API Key</label>
-        <input type="password" id="aiApiKey" placeholder="sk-ant-...">
+
+      <div class="settings-section">
+        <div class="settings-section-title">Identification</div>
+        <div class="settings-group">
+          <label class="settings-toggle">
+            <input type="checkbox" id="useGoogleVision">
+            Use Google Vision to identify artworks
+          </label>
+          <div class="settings-hint">Matches images against museum databases and the web. Free for up to 1,000 images/month.</div>
+        </div>
+        <div class="settings-group" id="gvKeyGroup">
+          <label>Google Cloud Vision API Key</label>
+          <input type="password" id="gvApiKey" placeholder="AIza...">
+        </div>
       </div>
-      <div class="settings-group">
-        <label>Model</label>
-        <input type="text" id="aiModel" value="claude-sonnet-4-20250514">
+
+      <div class="settings-section">
+        <div class="settings-section-title">Analysis</div>
+        <div class="settings-group">
+          <label>Provider</label>
+          <select id="aiProvider" onchange="toggleProviderFields()">
+            <option value="claude">Claude (Anthropic)</option>
+            <option value="openai">GPT (OpenAI)</option>
+          </select>
+        </div>
+        <div id="claudeFields">
+          <div class="settings-group">
+            <label>Claude API Key</label>
+            <input type="password" id="aiApiKey" placeholder="sk-ant-...">
+          </div>
+          <div class="settings-group">
+            <label>Model</label>
+            <select id="aiModel">
+              <option value="claude-sonnet-4-20250514">Sonnet 4 ($3/$15 per MTok)</option>
+              <option value="claude-haiku-4-5-20251001">Haiku 4.5 ($0.80/$4 per MTok)</option>
+              <option value="claude-opus-4-20250514">Opus 4 ($15/$75 per MTok)</option>
+            </select>
+          </div>
+          <div class="settings-group">
+            <label class="settings-toggle">
+              <input type="checkbox" id="aiOpusFallback">
+              Re-try with Opus when confidence is low
+            </label>
+          </div>
+        </div>
+        <div id="openaiFields" style="display:none">
+          <div class="settings-group">
+            <label>OpenAI API Key</label>
+            <input type="password" id="openaiApiKey" placeholder="sk-proj-...">
+          </div>
+          <div class="settings-group">
+            <label>Model</label>
+            <select id="openaiModel">
+              <option value="gpt-4.1">GPT-4.1 ($2/$8 per MTok)</option>
+              <option value="gpt-4.1-mini">GPT-4.1 Mini ($0.40/$1.60 per MTok)</option>
+              <option value="gpt-4.1-nano">GPT-4.1 Nano ($0.10/$0.40 per MTok)</option>
+              <option value="gpt-4o">GPT-4o ($2.50/$10 per MTok)</option>
+            </select>
+          </div>
+        </div>
       </div>
-      <div class="settings-group">
-        <label class="settings-toggle">
-          <input type="checkbox" id="aiAutoAnalyze">
-          Auto-analyze new uploads
-        </label>
+
+      <div class="settings-section">
+        <div class="settings-group">
+          <label class="settings-toggle">
+            <input type="checkbox" id="aiAutoAnalyze">
+            Auto-analyze new uploads
+          </label>
+        </div>
+      </div>
+
+      <div class="settings-group" id="usageSection" style="display:none">
+        <label>API Usage <span style="font-weight:normal;color:var(--text2)" id="usageMonth"></span></label>
+        <div id="usageDisplay" style="font-size:13px;color:var(--text2);line-height:1.8"></div>
       </div>
       <div class="settings-actions">
         <button class="primary" onclick="saveAiSettings()">Save</button>
-        <button onclick="analyzeAllUnanalyzed()">Analyze All Unanalyzed</button>
+        <button onclick="analyzeAllUnanalyzed()">Analyze Unanalyzed</button>
+        <button onclick="reanalyzeAll()">Re-analyze All</button>
         <button onclick="closeSettings()">Close</button>
       </div>
+      <div id="reanalyzeWarning" style="display:none;font-size:12px;color:var(--text2);margin-top:8px;padding:8px;background:var(--surface2);border-radius:6px"></div>
       <div class="batch-progress" id="batchProgress"></div>
     </div>
   </div>
@@ -1309,6 +1647,10 @@
     let activeCollectionId = null;
     const thumbCache = {};
     let artworkMeta = {};
+    let atmosphereResult = null;
+    let atmosphereExcluded = [];
+    let atmosphereLatLng = null;
+    let currentSort = 'none';
 
     const MATTE_COLORS = {
       polar:    { bg: '#f5f0eb', border: '#e0d8ce', label: 'Polar' },
@@ -1375,6 +1717,94 @@
       document.getElementById('loadingOverlay')?.remove();
     }
 
+    // --- Zoom ---
+
+    function setZoom(val) {
+      val = Math.max(120, Math.min(400, parseInt(val)));
+      document.getElementById('artGrid').style.setProperty('--thumb-size', val + 'px');
+      document.getElementById('zoomSlider').value = val;
+      localStorage.setItem('thumbZoom', val);
+    }
+    function zoomIn() { setZoom(parseInt(document.getElementById('zoomSlider').value) + 20); }
+    function zoomOut() { setZoom(parseInt(document.getElementById('zoomSlider').value) - 20); }
+
+    // --- Sort ---
+
+    function setSort(value) {
+      currentSort = value;
+      document.getElementById('sortSelect').value = value;
+      localStorage.setItem('artSort', value);
+      renderGrid();
+    }
+
+    function parseYearForSort(yearStr) {
+      if (!yearStr) return Infinity;
+      const m = yearStr.match(/\d{4}/);
+      if (m) return parseInt(m[0]);
+      if (/unknown/i.test(yearStr)) return Infinity;
+      const century = yearStr.match(/(\d{1,2})(?:st|nd|rd|th)\s+century/i);
+      if (century) return (parseInt(century[1]) - 1) * 100 + 50;
+      return Infinity;
+    }
+
+    function formatGroupLabel(key, sortField) {
+      if (sortField === 'date_added' && /^\d{4}-\d{2}$/.test(key)) {
+        return new Date(key + '-15').toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      }
+      return key;
+    }
+
+    function getSortedGroupedItems(items) {
+      const SENTINEL = '\uffff';
+      const getGroupKey = (item) => {
+        const meta = artworkMeta[item.content_id];
+        const ai = meta?.ai_meta;
+        switch (currentSort) {
+          case 'artist': return ai?.artist || SENTINEL;
+          case 'year': return ai?.year || SENTINEL;
+          case 'school': return (ai?.school && ai.school !== 'N/A') ? ai.school : SENTINEL;
+          case 'medium': return ai?.medium || SENTINEL;
+          case 'title': {
+            const t = getArtworkTitle(item);
+            const ch = t.charAt(0).toUpperCase();
+            return /[A-Z]/.test(ch) ? ch : '#';
+          }
+          case 'date_added': {
+            const d = meta?.uploaded_at;
+            return d ? d.substring(0, 7) : SENTINEL;
+          }
+          default: return '';
+        }
+      };
+
+      const getSortVal = (item) => {
+        if (currentSort === 'year') return parseYearForSort(artworkMeta[item.content_id]?.ai_meta?.year);
+        if (currentSort === 'date_added') return artworkMeta[item.content_id]?.uploaded_at || SENTINEL;
+        return getGroupKey(item).toLowerCase();
+      };
+
+      const sorted = [...items].sort((a, b) => {
+        const va = getSortVal(a), vb = getSortVal(b);
+        return va < vb ? -1 : va > vb ? 1 : 0;
+      });
+
+      const result = [];
+      let lastKey = null;
+      let headerIdx = -1;
+      for (const item of sorted) {
+        const key = getGroupKey(item);
+        if (key !== lastKey) {
+          const label = key === SENTINEL ? 'Not Yet Analyzed' : formatGroupLabel(key, currentSort);
+          result.push({ type: 'header', label, count: 0 });
+          headerIdx = result.length - 1;
+          lastKey = key;
+        }
+        result[headerIdx].count++;
+        result.push({ type: 'item', item });
+      }
+      return result;
+    }
+
     // --- Init ---
 
     async function init() {
@@ -1394,6 +1824,11 @@
       loadMattes();
       loadCollections();
       loadArtworkMeta();
+
+      const savedZoom = localStorage.getItem('thumbZoom');
+      if (savedZoom) setZoom(parseInt(savedZoom));
+      const savedSort = localStorage.getItem('artSort');
+      if (savedSort) { currentSort = savedSort; document.getElementById('sortSelect').value = savedSort; }
     }
 
     async function loadArtworkMeta() {
@@ -1468,6 +1903,40 @@
       }
     }
 
+    function renderCardHtml(item) {
+      const id = item.content_id;
+      const isCurrent = id === currentId;
+      const isSelected = selectedIds.has(id);
+      const title = getArtworkTitle(item);
+      const cached = thumbCache[id];
+      const meta = artworkMeta[id];
+      let aspectBadge = '';
+      if (meta && meta.width && meta.height) {
+        const ar = meta.width / meta.height;
+        if (Math.abs(ar - 16/9) > 0.01) {
+          aspectBadge = `<span class="aspect-badge">${getAspectLabel(ar)}</span>`;
+        }
+      }
+      const failBadge = meta?.ai_failed
+        ? '<span class="aspect-badge" style="background:rgba(231,76,60,0.85)" title="AI analysis failed">&#9888;</span>'
+        : '';
+      return `
+        <div class="art-card ${isSelected ? 'selected' : ''} ${isCurrent ? 'current' : ''}"
+             data-id="${id}" onclick="onCardClick('${id}', event)">
+          <div class="checkbox">${isSelected ? '&#10003;' : ''}</div>
+          ${isCurrent ? '<span class="current-badge">Displayed</span>' : ''}
+          ${aspectBadge}
+          ${failBadge}
+          ${cached
+            ? `<img class="thumb" id="thumb-${id}" src="${cached}">`
+            : `<div class="thumb loading" id="thumb-${id}">Loading...</div>`}
+          <div class="info">
+            <span title="${title}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px">${title}</span>
+            <span>${item.content_id?.substring(0, 8) || ''}</span>
+          </div>
+        </div>`;
+    }
+
     function renderGrid() {
       const grid = document.getElementById('artGrid');
       const seen = new Set();
@@ -1492,35 +1961,20 @@
         return;
       }
 
-      grid.innerHTML = items.map(item => {
-        const id = item.content_id;
-        const isCurrent = id === currentId;
-        const isSelected = selectedIds.has(id);
-        const title = getArtworkTitle(item);
-        const cached = thumbCache[id];
-        const meta = artworkMeta[id];
-        let aspectBadge = '';
-        if (meta && meta.width && meta.height) {
-          const ar = meta.width / meta.height;
-          if (Math.abs(ar - 16/9) > 0.01) {
-            aspectBadge = `<span class="aspect-badge">${getAspectLabel(ar)}</span>`;
+      if (currentSort !== 'none') {
+        const grouped = getSortedGroupedItems(items);
+        grid.innerHTML = grouped.map(entry => {
+          if (entry.type === 'header') {
+            return `<div class="group-header">
+              <span class="group-header-label">${entry.label}</span>
+              <span class="group-header-count">${entry.count}</span>
+            </div>`;
           }
-        }
-        return `
-          <div class="art-card ${isSelected ? 'selected' : ''} ${isCurrent ? 'current' : ''}"
-               data-id="${id}" onclick="onCardClick('${id}', event)">
-            <div class="checkbox">${isSelected ? '&#10003;' : ''}</div>
-            ${isCurrent ? '<span class="current-badge">Displayed</span>' : ''}
-            ${aspectBadge}
-            ${cached
-              ? `<img class="thumb" id="thumb-${id}" src="${cached}">`
-              : `<div class="thumb loading" id="thumb-${id}">Loading...</div>`}
-            <div class="info">
-              <span title="${title}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px">${title}</span>
-              <span>${item.content_id?.substring(0, 8) || ''}</span>
-            </div>
-          </div>`;
-      }).join('');
+          return renderCardHtml(entry.item);
+        }).join('');
+      } else {
+        grid.innerHTML = items.map(item => renderCardHtml(item)).join('');
+      }
     }
 
     let _thumbObserver = null;
@@ -2321,7 +2775,7 @@
       fileInput.value = '';
     }
 
-    function uploadFileWithProgress(file, matte, onProgress) {
+    function uploadFileWithProgress(file, matte, analyze, { onUploadProgress, onAnalyzing }) {
       return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         const form = new FormData();
@@ -2330,7 +2784,10 @@
         form.append('filename', file.name);
 
         xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) onProgress((e.loaded / e.total) * 100);
+          if (e.lengthComputable) onUploadProgress((e.loaded / e.total) * 100);
+        };
+        xhr.upload.onloadend = () => {
+          if (analyze) onAnalyzing();
         };
 
         xhr.onload = () => {
@@ -2343,7 +2800,7 @@
         };
 
         xhr.onerror = () => reject(new Error('Network error'));
-        xhr.open('POST', '/api/upload');
+        xhr.open('POST', '/api/upload' + (analyze ? '?analyze=true' : ''));
         xhr.send(form);
       });
     }
@@ -2384,29 +2841,58 @@
       document.getElementById('uploadControls').style.display = 'none';
       const progressDiv = document.getElementById('uploadProgress');
       progressDiv.style.display = 'flex';
+
+      let shouldAnalyze = false;
+      try {
+        const cfg = await api('/ai/config');
+        shouldAnalyze = cfg.auto_analyze && cfg.claude?.api_key;
+      } catch {}
+
       progressDiv.innerHTML = `
         <div class="progress-label" id="progressLabel">Preparing upload...</div>
         <div class="progress-bar-track"><div class="progress-bar-fill" id="progressBar"></div></div>
-        <div class="progress-sublabel" id="progressSublabel"></div>
+        <div class="progress-overall">
+          <span id="progressStage"></span>
+          <span id="progressOverall"></span>
+        </div>
         <button onclick="cancelUpload()">Cancel</button>
       `;
 
-      let uploaded = 0;
+      let completed = 0;
       const total = pendingFiles.length;
 
       for (const file of pendingFiles) {
         document.getElementById('progressLabel').textContent =
-          `Uploading ${uploaded + 1} of ${total}: ${file.name}`;
+          total > 1 ? `${completed + 1} of ${total}: ${file.name}` : file.name;
+        document.getElementById('progressBar').className = 'progress-bar-fill';
         document.getElementById('progressBar').style.width = '0%';
+        document.getElementById('progressStage').textContent = 'Uploading...';
+        document.getElementById('progressOverall').textContent =
+          total > 1 ? `${completed} of ${total} complete` : '';
 
         try {
-          const result = await uploadFileWithProgress(file, matte, (pct) => {
-            document.getElementById('progressBar').style.width = pct + '%';
-            document.getElementById('progressSublabel').textContent = Math.round(pct) + '%';
+          const result = await uploadFileWithProgress(file, matte, shouldAnalyze, {
+            onUploadProgress: (pct) => {
+              document.getElementById('progressBar').style.width = pct + '%';
+              document.getElementById('progressStage').textContent = `Uploading... ${Math.round(pct)}%`;
+            },
+            onAnalyzing: () => {
+              document.getElementById('progressBar').className = 'progress-bar-fill pulsing';
+              document.getElementById('progressStage').textContent = 'Analyzing with AI...';
+            },
           });
-          uploaded++;
-          if (result.content_id && result.title) {
-            artworkMeta[result.content_id] = { title: result.title, width: result.width, height: result.height };
+
+          completed++;
+          if (result.content_id) {
+            artworkMeta[result.content_id] = {
+              title: result.title, width: result.width, height: result.height,
+            };
+            if (result.ai_meta) {
+              artworkMeta[result.content_id].ai_meta = result.ai_meta;
+            }
+            if (result.ai_error) {
+              toast(`AI analysis failed for ${file.name}`, 'error');
+            }
           }
         } catch (e) {
           toast(`Failed to upload ${file.name}: ${e.message}`, 'error');
@@ -2414,7 +2900,8 @@
       }
 
       cancelUpload();
-      toast(`Uploaded ${uploaded} file(s)`, 'success');
+      toast(`Uploaded ${completed} file(s)`, 'success');
+      await loadArtworkMeta();
       loadArt();
     }
 
@@ -2428,15 +2915,55 @@
 
     // --- AI Settings ---
 
+    function toggleProviderFields() {
+      const provider = document.getElementById('aiProvider').value;
+      document.getElementById('claudeFields').style.display = provider === 'claude' ? '' : 'none';
+      document.getElementById('openaiFields').style.display = provider === 'openai' ? '' : 'none';
+    }
+
     async function openSettings() {
       try {
         const config = await api('/ai/config');
+        document.getElementById('useGoogleVision').checked = config.use_google_vision ?? true;
+        document.getElementById('gvApiKey').value = '';
+        document.getElementById('gvApiKey').placeholder = config.google_vision?.api_key || 'AIza...';
+        document.getElementById('aiProvider').value = config.provider || 'claude';
         document.getElementById('aiApiKey').value = '';
         document.getElementById('aiApiKey').placeholder = config.claude?.api_key || 'sk-ant-...';
         document.getElementById('aiModel').value = config.claude?.model || 'claude-sonnet-4-20250514';
         document.getElementById('aiAutoAnalyze').checked = config.auto_analyze || false;
+        document.getElementById('aiOpusFallback').checked = config.opus_fallback || false;
+        document.getElementById('openaiApiKey').value = '';
+        document.getElementById('openaiApiKey').placeholder = config.openai?.api_key || 'sk-proj-...';
+        document.getElementById('openaiModel').value = config.openai?.model || 'gpt-4.1';
+        toggleProviderFields();
       } catch {}
+      try {
+        const usage = await api('/ai/usage');
+        const section = document.getElementById('usageSection');
+        if (usage.calls > 0) {
+          const tokens = (usage.input_tokens + usage.output_tokens).toLocaleString();
+          const cost = usage.estimated_cost_usd;
+          const monthLabel = new Date(usage.month + '-15').toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+          document.getElementById('usageMonth').textContent = `(${monthLabel})`;
+          document.getElementById('usageDisplay').innerHTML =
+            `${usage.calls} API call${usage.calls !== 1 ? 's' : ''} &middot; ${tokens} tokens<br>` +
+            `Estimated cost: <strong>$${cost < 0.01 ? cost.toFixed(4) : cost.toFixed(2)}</strong>`;
+          section.style.display = '';
+        } else {
+          section.style.display = 'none';
+        }
+      } catch { document.getElementById('usageSection').style.display = 'none'; }
       document.getElementById('batchProgress').textContent = '';
+      const warn = document.getElementById('reanalyzeWarning');
+      warn.style.display = 'none';
+      if (artItems.length > 0) {
+        try {
+          const est = await api(`/ai/estimate?count=${artItems.length}`);
+          warn.style.display = 'block';
+          warn.textContent = `Re-analyzing all ${est.count} images will take ~${est.estimated_minutes} min and cost ~$${est.estimated_cost_usd.toFixed(2)} (${est.model})`;
+        } catch {}
+      }
       document.getElementById('settingsModal').classList.add('active');
     }
 
@@ -2446,15 +2973,41 @@
 
     async function saveAiSettings() {
       const apiKey = document.getElementById('aiApiKey').value.trim();
-      const model = document.getElementById('aiModel').value.trim();
+      const model = document.getElementById('aiModel').value;
       const autoAnalyze = document.getElementById('aiAutoAnalyze').checked;
+      const opusFallback = document.getElementById('aiOpusFallback').checked;
+      const provider = document.getElementById('aiProvider').value;
+      const useGoogleVision = document.getElementById('useGoogleVision').checked;
+      const gvKey = document.getElementById('gvApiKey').value.trim();
+      const openaiKey = document.getElementById('openaiApiKey').value.trim();
+      const openaiModel = document.getElementById('openaiModel').value;
       try {
-        const body = { auto_analyze: autoAnalyze, claude: { model } };
+        const body = {
+          provider,
+          auto_analyze: autoAnalyze,
+          opus_fallback: opusFallback,
+          use_google_vision: useGoogleVision,
+          claude: { model },
+          openai: { model: openaiModel },
+          google_vision: {},
+        };
         if (apiKey) body.claude.api_key = apiKey;
+        if (openaiKey) body.openai.api_key = openaiKey;
+        if (gvKey) body.google_vision.api_key = gvKey;
         await api('/ai/config', { method: 'PUT', body });
         toast('AI settings saved', 'success');
-        if (apiKey) document.getElementById('aiApiKey').placeholder = '...' + apiKey.slice(-4);
-        document.getElementById('aiApiKey').value = '';
+        if (apiKey) {
+          document.getElementById('aiApiKey').placeholder = '...' + apiKey.slice(-4);
+          document.getElementById('aiApiKey').value = '';
+        }
+        if (openaiKey) {
+          document.getElementById('openaiApiKey').placeholder = '...' + openaiKey.slice(-4);
+          document.getElementById('openaiApiKey').value = '';
+        }
+        if (gvKey) {
+          document.getElementById('gvApiKey').placeholder = '...' + gvKey.slice(-4);
+          document.getElementById('gvApiKey').value = '';
+        }
       } catch (e) {
         toast('Failed: ' + e.message, 'error');
       }
@@ -2473,12 +3026,38 @@
       }
     }
 
+    async function reanalyzeAll() {
+      const count = artItems.length;
+      if (!confirm(`Re-analyze all ${count} artworks? This will update titles and metadata for every image.`)) return;
+      const progress = document.getElementById('batchProgress');
+      progress.textContent = 'Re-analyzing all artwork...';
+      try {
+        const result = await api('/ai/analyze-batch', { method: 'POST', body: { force: true } });
+        progress.textContent = `Done: ${result.analyzed} re-analyzed, ${result.failed} failed`;
+        await loadArtworkMeta();
+        renderGrid();
+        if (detailItem) renderAiMeta(detailItem.content_id);
+      } catch (e) {
+        progress.textContent = 'Failed: ' + e.message;
+      }
+    }
+
     // --- AI metadata display ---
 
     function renderAiMeta(contentId) {
       const section = document.getElementById('aiMetaSection');
       const meta = artworkMeta[contentId];
       const ai = meta?.ai_meta;
+
+      if (meta?.ai_failed) {
+        section.style.display = 'block';
+        section.innerHTML = `
+          <h4>AI Analysis</h4>
+          <p style="color:#e74c3c;font-size:13px">Analysis failed: ${meta.ai_error || 'Unknown error'}</p>
+          <button class="ai-analyze-btn" onclick="analyzeCurrentArtwork()">Retry Analysis</button>
+        `;
+        return;
+      }
 
       if (!ai) {
         section.style.display = 'block';
@@ -2490,16 +3069,28 @@
       }
 
       const vibes = (ai.vibes || []).map(v => `<span class="vibe-pill">${v}</span>`).join('');
+      const provenance = [];
+      if (ai.vision_identified) provenance.push('ID: Google Vision');
+      if (ai.provider && ai.model) {
+        const shortModel = ai.model.replace('claude-', '').replace('-20250514', '')
+          .replace('-20251001', '').replace('gpt-', 'GPT-');
+        provenance.push(`Analysis: ${shortModel}`);
+      }
+      const provenanceLine = provenance.length
+        ? `<div class="ai-provenance">${provenance.join(' &middot; ')}</div>` : '';
       section.style.display = 'block';
       section.innerHTML = `
         <h4>AI Analysis</h4>
+        <div class="ai-meta-row"><span class="label">Title</span><span class="value">${ai.title || 'Unknown'}</span></div>
         <div class="ai-meta-row"><span class="label">Artist</span><span class="value">${ai.artist || 'Unknown'}</span></div>
         <div class="ai-meta-row"><span class="label">Year</span><span class="value">${ai.year || 'Unknown'}</span></div>
         <div class="ai-meta-row"><span class="label">Medium</span><span class="value">${ai.medium || 'Unknown'}</span></div>
         <div class="ai-meta-row"><span class="label">School</span><span class="value">${ai.school || 'N/A'}</span></div>
+        ${ai.confidence ? `<div class="ai-meta-row"><span class="label">Confidence</span><span class="value">${ai.confidence}</span></div>` : ''}
         ${vibes ? `<div class="ai-vibes">${vibes}</div>` : ''}
         ${ai.description ? `<div class="ai-description">${ai.description}</div>` : ''}
         <button class="ai-analyze-btn" onclick="analyzeCurrentArtwork()">Re-analyze</button>
+        ${provenanceLine}
       `;
     }
 
@@ -2512,6 +3103,11 @@
         const result = await api(`/ai/analyze/${detailItem.content_id}`, { method: 'POST' });
         artworkMeta[detailItem.content_id] = artworkMeta[detailItem.content_id] || {};
         artworkMeta[detailItem.content_id].ai_meta = result.ai_meta;
+        if (result.title) {
+          artworkMeta[detailItem.content_id].title = result.title;
+          renderDetailTitle(detailItem);
+          renderGrid();
+        }
         renderAiMeta(detailItem.content_id);
         toast('AI analysis complete', 'success');
       } catch (e) {
@@ -2617,6 +3213,146 @@
       }
     }
 
+    // --- Atmosphere ---
+
+    function _extractError(e) {
+      try { return JSON.parse(e.message).detail; } catch { return e.message || 'Something went wrong'; }
+    }
+
+    async function openAtmosphere(excludeIds) {
+      if (excludeIds) atmosphereExcluded = excludeIds;
+      else atmosphereExcluded = [];
+
+      const modal = document.getElementById('atmosphereModal');
+      const loading = document.getElementById('atmosphereLoading');
+      const reveal = document.getElementById('atmosphereReveal');
+      const error = document.getElementById('atmosphereError');
+
+      modal.classList.add('active');
+      loading.style.display = 'block';
+      reveal.style.display = 'none';
+      error.style.display = 'none';
+      document.getElementById('atmosphereLoadingText').textContent = 'Reading the atmosphere...';
+
+      const textTimer = setTimeout(() => {
+        document.getElementById('atmosphereLoadingText').textContent = 'Consulting the curator...';
+      }, 3000);
+
+      try {
+        if (!atmosphereLatLng) {
+          atmosphereLatLng = await new Promise((resolve, reject) => {
+            if (!navigator.geolocation) {
+              reject(new Error('no_geo'));
+              return;
+            }
+            navigator.geolocation.getCurrentPosition(
+              pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+              () => reject(new Error('no_geo')),
+              { timeout: 10000 }
+            );
+          });
+        }
+
+        const result = await api('/atmosphere', {
+          method: 'POST',
+          body: { lat: atmosphereLatLng.lat, lng: atmosphereLatLng.lng, exclude_ids: atmosphereExcluded },
+        });
+
+        clearTimeout(textTimer);
+        atmosphereResult = result;
+        loading.style.display = 'none';
+        renderAtmosphereReveal(result);
+      } catch (e) {
+        clearTimeout(textTimer);
+        loading.style.display = 'none';
+        if (e.message === 'no_geo') {
+          error.style.display = 'block';
+          document.getElementById('atmosphereErrorMsg').textContent = 'Location access needed. Enter a city or zip code instead:';
+          document.getElementById('atmosphereLocationFallback').style.display = 'flex';
+        } else {
+          error.style.display = 'block';
+          document.getElementById('atmosphereErrorMsg').textContent = _extractError(e);
+          document.getElementById('atmosphereLocationFallback').style.display = 'none';
+        }
+      }
+    }
+
+    function renderAtmosphereReveal(data) {
+      const reveal = document.getElementById('atmosphereReveal');
+      reveal.style.display = 'block';
+
+      const w = data.weather;
+      const timeIcon = w.is_day ? '\u2600' : '\u263E';
+      document.getElementById('atmosphereWeather').innerHTML =
+        `<span class="temp">${Math.round(w.temp)}${w.temp_unit}</span><span class="desc">${timeIcon} ${w.description}</span>`;
+
+      const img = document.getElementById('atmosphereImg');
+      img.classList.remove('revealed');
+      img.src = thumbCache[data.content_id] || `/api/thumbnail/${data.content_id}`;
+
+      document.getElementById('atmosphereTitle').textContent = data.artwork_title;
+      document.getElementById('atmosphereTitle').classList.remove('revealed');
+      document.getElementById('atmosphereNote').textContent = data.curator_note;
+      document.getElementById('atmosphereNote').classList.remove('revealed');
+
+      document.getElementById('atmosphereVibes').innerHTML =
+        (data.vibes_matched || []).map(v => `<span class="vibe-pill">${v}</span>`).join('');
+      document.getElementById('atmosphereVibes').classList.remove('revealed');
+      document.getElementById('atmosphereActions').classList.remove('revealed');
+
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        img.classList.add('revealed');
+        document.getElementById('atmosphereTitle').classList.add('revealed');
+        document.getElementById('atmosphereNote').classList.add('revealed');
+        document.getElementById('atmosphereVibes').classList.add('revealed');
+        document.getElementById('atmosphereActions').classList.add('revealed');
+      }));
+    }
+
+    async function atmosphereDisplay() {
+      if (!atmosphereResult) return;
+      try {
+        await api('/select', { method: 'POST', body: { content_id: atmosphereResult.content_id } });
+        currentId = atmosphereResult.content_id;
+        renderGrid();
+        toast(`Now displaying: ${atmosphereResult.artwork_title}`, 'success');
+        closeAtmosphere();
+      } catch (e) {
+        toast('Failed to display: ' + e.message, 'error');
+      }
+    }
+
+    function atmosphereRetry() {
+      if (atmosphereResult) {
+        atmosphereExcluded.push(atmosphereResult.content_id);
+      }
+      const analyzed = Object.values(artworkMeta).filter(m => m.ai_meta && m.ai_meta.vibes && m.ai_meta.vibes.length);
+      if (atmosphereExcluded.length >= analyzed.length) {
+        atmosphereExcluded = [];
+        toast('Starting fresh \u2014 all artwork considered again', 'info');
+      }
+      openAtmosphere(atmosphereExcluded);
+    }
+
+    async function atmosphereGeocode() {
+      const query = document.getElementById('atmosphereLocationQuery').value.trim();
+      if (!query) return;
+      try {
+        const result = await api('/atmosphere/geocode', { method: 'POST', body: { query } });
+        atmosphereLatLng = { lat: result.lat, lng: result.lng };
+        document.getElementById('atmosphereError').style.display = 'none';
+        openAtmosphere(atmosphereExcluded);
+      } catch (e) {
+        document.getElementById('atmosphereErrorMsg').textContent = _extractError(e);
+      }
+    }
+
+    function closeAtmosphere() {
+      document.getElementById('atmosphereModal').classList.remove('active');
+      atmosphereExcluded = [];
+      atmosphereLatLng = null;
+    }
+
     // --- Lightbox ---
 
     function openLightbox() {
@@ -2667,6 +3403,7 @@
 
       const lightboxOpen = document.getElementById('lightbox').classList.contains('active');
       const cropOpen = document.getElementById('cropModal').classList.contains('active');
+      const atmosphereOpen = document.getElementById('atmosphereModal').classList.contains('active');
       const settingsOpen = document.getElementById('settingsModal').classList.contains('active');
       const syncOpen = document.getElementById('syncModal').classList.contains('active');
       const detailOpen = document.getElementById('detailPanel').classList.contains('active');
@@ -2674,6 +3411,7 @@
       if (e.key === 'Escape') {
         if (lightboxOpen) { closeLightbox(); return; }
         if (cropOpen) { closeCropModal(); return; }
+        if (atmosphereOpen) { closeAtmosphere(); return; }
         if (settingsOpen) { closeSettings(); return; }
         if (syncOpen) { closeSyncModal(); return; }
         if (detailOpen) { closeDetail(); return; }
