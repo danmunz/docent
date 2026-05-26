@@ -3,3 +3,5 @@ __pycache__/
 .venv/
 .tv-token
 .cache/
+ai_config.json
+drive_sync.json

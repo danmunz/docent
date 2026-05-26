@@ -8,6 +8,7 @@ dependencies = [
     "samsungtvws @ git+https://github.com/xchwarze/samsung-tv-ws-api.git",
     "python-multipart>=0.0.9",
     "pillow>=10.0",
+    "httpx>=0.27",
 ]
 
 [project.scripts]

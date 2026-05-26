@@ -6,24 +6,25 @@
 <title>Frame Art Manager</title>
 <style>
   :root {
-    --bg: #0a0a0a;
-    --surface: #161616;
-    --surface2: #1e1e1e;
-    --border: #2a2a2a;
-    --text: #e8e8e8;
-    --text2: #888;
-    --accent: #4a9eff;
-    --accent-hover: #6bb3ff;
-    --danger: #e55;
-    --success: #4c6;
-    --radius: 8px;
+    --bg: #0c0a08;
+    --surface: #171411;
+    --surface2: #1f1b17;
+    --border: #2d2720;
+    --text: #ede8e0;
+    --text2: #9a918a;
+    --accent: #c8965a;
+    --accent-hover: #d4a76b;
+    --accent-glow: rgba(200, 150, 90, 0.15);
+    --danger: #d45454;
+    --success: #6ab06a;
+    --radius: 10px;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg);
+    background: radial-gradient(ellipse at 50% 0%, #1a1510 0%, var(--bg) 70%);
     color: var(--text);
     min-height: 100vh;
   }
@@ -38,9 +39,10 @@
   }
 
   header h1 {
+    font-family: Georgia, 'Times New Roman', serif;
     font-size: 20px;
-    font-weight: 600;
-    letter-spacing: -0.3px;
+    font-weight: 400;
+    letter-spacing: 0.5px;
   }
 
   .header-controls {
@@ -77,10 +79,10 @@
   }
 
   button:hover { background: #282828; border-color: #444; }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  button.primary:hover { background: var(--accent-hover); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
   button.danger { border-color: var(--danger); color: var(--danger); }
-  button.danger:hover { background: rgba(238,85,85,0.15); }
+  button.danger:hover { background: rgba(212,84,84,0.15); }
   button:disabled { opacity: 0.4; cursor: default; }
 
   select {
@@ -145,7 +147,11 @@
     transition: border-color 0.15s, transform 0.15s;
   }
 
-  .art-card:hover { border-color: #444; transform: translateY(-2px); }
+  .art-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-4px) scale(1.01);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4), 0 0 0 1px rgba(200,150,90,0.1);
+  }
   .art-card.selected { border-color: var(--accent); }
   .art-card.current { border-color: var(--success); }
 
@@ -161,8 +167,16 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--text2);
+    color: transparent;
     font-size: 12px;
+    background: linear-gradient(90deg, var(--surface) 25%, var(--surface2) 50%, var(--surface) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s infinite;
+  }
+
+  @keyframes skeleton-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
   }
 
   .art-card .info {
@@ -230,12 +244,23 @@
     margin: 24px 32px;
   }
 
-  .upload-zone:hover, .upload-zone.dragover {
+  .upload-zone:hover {
     border-color: var(--accent);
-    background: rgba(74,158,255,0.05);
+    background: var(--accent-glow);
   }
 
-  .upload-zone h3 { color: var(--text); margin-bottom: 8px; font-size: 16px; }
+  .upload-zone.dragover {
+    border-color: var(--accent);
+    background: var(--accent-glow);
+    animation: upload-pulse 1s ease infinite;
+  }
+
+  @keyframes upload-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(200,150,90,0.2); }
+    50% { box-shadow: 0 0 20px 4px rgba(200,150,90,0.15); }
+  }
+
+  .upload-zone h3 { color: var(--text); margin-bottom: 8px; font-size: 16px; font-family: Georgia, 'Times New Roman', serif; font-weight: 400; }
   .upload-zone p { font-size: 13px; }
 
   .upload-zone input[type="file"] { display: none; }
@@ -432,7 +457,6 @@
 
   /* Detail panel (matte chooser) */
   .detail-panel {
-    display: none;
     position: fixed;
     top: 0; right: 0;
     width: 380px;
@@ -442,11 +466,14 @@
     padding: 24px;
     z-index: 100;
     overflow-y: auto;
+    transform: translateX(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    visibility: hidden;
   }
 
-  .detail-panel.active { display: block; }
+  .detail-panel.active { transform: translateX(0); visibility: visible; }
 
-  .detail-panel h3 { margin-bottom: 16px; font-size: 16px; }
+  .detail-panel h3 { margin-bottom: 16px; font-size: 16px; font-family: Georgia, 'Times New Roman', serif; font-weight: 400; }
 
   .detail-panel .detail-info {
     font-size: 13px;
@@ -466,7 +493,7 @@
     align-items: center;
     gap: 4px;
     padding: 3px 10px;
-    background: rgba(74,158,255,0.15);
+    background: rgba(200,150,90,0.15);
     color: var(--accent);
     border-radius: 12px;
     font-size: 11px;
@@ -491,6 +518,7 @@
     display: flex;
     gap: 8px;
     margin-bottom: 12px;
+    flex-wrap: wrap;
   }
 
   .matte-type-btn {
@@ -505,12 +533,13 @@
   }
 
   .matte-type-btn:hover { border-color: #555; }
-  .matte-type-btn.active { border-color: var(--accent); color: var(--text); background: rgba(74,158,255,0.1); }
+  .matte-type-btn.active { border-color: var(--accent); color: var(--text); background: var(--accent-glow); }
 
   .matte-color-row {
     display: flex;
     gap: 10px;
     margin-bottom: 16px;
+    flex-wrap: wrap;
   }
 
   .color-swatch {
@@ -571,14 +600,16 @@
   }
 
   .overlay {
-    display: none;
     position: fixed;
     inset: 0;
     background: rgba(0,0,0,0.5);
     z-index: 99;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s, visibility 0.3s;
   }
 
-  .overlay.active { display: block; }
+  .overlay.active { opacity: 1; visibility: visible; }
 
   /* Collection add dropdown */
   .collection-dropdown {
@@ -630,16 +661,21 @@
     padding: 10px 20px;
     border-radius: var(--radius);
     font-size: 13px;
-    z-index: 200;
+    z-index: 2600;
     opacity: 0;
     transition: transform 0.3s, opacity 0.3s;
     pointer-events: none;
+    border-left: 4px solid var(--border);
   }
 
   .toast.show {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
   }
+
+  .toast.toast-success { border-left-color: var(--success); }
+  .toast.toast-error { border-left-color: var(--danger); }
+  .toast.toast-info { border-left-color: var(--accent); }
 
   /* Loading spinner */
   .spinner {
@@ -676,7 +712,7 @@
     color: var(--text2);
   }
 
-  .empty-state h3 { color: var(--text); margin-bottom: 8px; }
+  .empty-state h3 { color: var(--text); margin-bottom: 8px; font-family: Georgia, 'Times New Roman', serif; font-weight: 400; }
 
   .crop-modal {
     display: none;
@@ -702,6 +738,8 @@
   .crop-modal-content h3 {
     margin-bottom: 16px;
     font-size: 16px;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: 400;
   }
 
   .crop-queue-indicator {
@@ -763,6 +801,323 @@
     gap: 8px;
     flex-wrap: wrap;
   }
+
+  /* Lightbox */
+  .lightbox {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.92);
+    z-index: 2500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s, visibility 0.25s;
+    cursor: zoom-out;
+  }
+
+  .lightbox.active { opacity: 1; visibility: visible; }
+
+  .lightbox img {
+    max-width: 95vw;
+    max-height: 95vh;
+    object-fit: contain;
+    border-radius: 4px;
+  }
+
+  .lightbox-close {
+    position: absolute;
+    top: 20px;
+    right: 24px;
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.7);
+    font-size: 32px;
+    cursor: pointer;
+    padding: 4px;
+    z-index: 2501;
+    transition: color 0.15s;
+  }
+
+  .lightbox-close:hover { color: #fff; background: none; border: none; }
+
+  /* AI metadata in detail panel */
+  .ai-meta-section {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .ai-meta-section h4 {
+    font-size: 13px;
+    color: var(--text2);
+    margin-bottom: 10px;
+  }
+
+  .ai-meta-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    padding: 4px 0;
+    gap: 8px;
+  }
+
+  .ai-meta-row .label { color: var(--text2); flex-shrink: 0; }
+  .ai-meta-row .value { color: var(--text); text-align: right; }
+
+  .ai-vibes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 8px 0;
+  }
+
+  .vibe-pill {
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    background: var(--accent-glow);
+    color: var(--accent);
+    border: 1px solid rgba(200,150,90,0.2);
+  }
+
+  .ai-description {
+    font-size: 13px;
+    color: var(--text2);
+    font-style: italic;
+    margin: 8px 0;
+    line-height: 1.5;
+  }
+
+  .ai-analyze-btn {
+    margin-top: 8px;
+    font-size: 12px;
+    padding: 4px 12px;
+  }
+
+  /* Settings modal */
+  .settings-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s, visibility 0.25s;
+  }
+
+  .settings-modal.active { opacity: 1; visibility: visible; }
+
+  .settings-content {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 480px;
+    width: 90vw;
+  }
+
+  .settings-content h3 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: 400;
+    margin-bottom: 16px;
+  }
+
+  .settings-group {
+    margin-bottom: 16px;
+  }
+
+  .settings-group label {
+    display: block;
+    font-size: 13px;
+    color: var(--text2);
+    margin-bottom: 6px;
+  }
+
+  .settings-group input[type="text"],
+  .settings-group input[type="password"] {
+    width: 100%;
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    outline: none;
+  }
+
+  .settings-group input:focus {
+    border-color: var(--accent);
+  }
+
+  .settings-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text);
+  }
+
+  .settings-toggle input[type="checkbox"] {
+    accent-color: var(--accent);
+    width: 16px;
+    height: 16px;
+  }
+
+  .settings-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+  }
+
+  .batch-progress {
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--text2);
+  }
+
+  .header-settings-btn {
+    background: none;
+    border: none;
+    color: var(--text2);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 4px 8px;
+    transition: color 0.15s;
+  }
+
+  .header-settings-btn:hover { color: var(--text); background: none; border: none; }
+
+  /* Drive sync modal */
+  .sync-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s, visibility 0.25s;
+  }
+
+  .sync-modal.active { opacity: 1; visibility: visible; }
+
+  .sync-content {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 560px;
+    width: 90vw;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+
+  .sync-content h3 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: 400;
+    margin-bottom: 16px;
+  }
+
+  .sync-list {
+    margin: 16px 0;
+  }
+
+  .sync-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 8px;
+    gap: 12px;
+  }
+
+  .sync-item-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .sync-item-name {
+    font-size: 13px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sync-item-meta {
+    font-size: 11px;
+    color: var(--text2);
+    margin-top: 2px;
+  }
+
+  .sync-item-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .sync-item-actions button {
+    font-size: 12px;
+    padding: 4px 10px;
+  }
+
+  .sync-add-form {
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+    margin-top: 16px;
+  }
+
+  .sync-add-form h4 {
+    font-size: 13px;
+    color: var(--text2);
+    margin-bottom: 10px;
+  }
+
+  .sync-form-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+    align-items: center;
+  }
+
+  .sync-form-row input,
+  .sync-form-row select {
+    flex: 1;
+  }
+
+  .sync-form-row input[type="text"] {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    outline: none;
+  }
+
+  .sync-form-row input:focus { border-color: var(--accent); }
+
+  .drive-badge {
+    display: inline-block;
+    background: rgba(66,133,244,0.15);
+    color: #7aabf5;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-top: 4px;
+  }
 </style>
 </head>
 <body>
@@ -770,6 +1125,8 @@
     <h1>Frame Art Manager</h1>
     <div class="header-controls">
       <span class="tv-status" id="tvStatus">Connecting...</span>
+      <button onclick="openSyncModal()">Sync</button>
+      <button class="header-settings-btn" onclick="openSettings()" title="AI Settings">&#9881;</button>
       <button id="btnArtMode" onclick="toggleArtMode()">Art Mode</button>
     </div>
   </header>
@@ -831,10 +1188,11 @@
       <button onclick="cancelRename()" style="padding:6px 10px">Cancel</button>
     </div>
     <div class="matte-preview-box" id="mattePreviewBox">
-      <img id="detailThumb" src="">
+      <img id="detailThumb" src="" style="cursor:zoom-in" onclick="openLightbox()">
     </div>
     <div class="detail-info" id="detailInfo"></div>
     <div class="detail-collections" id="detailCollections"></div>
+    <div class="ai-meta-section" id="aiMetaSection" style="display:none"></div>
     <div class="matte-section">
       <h4>Frame Style</h4>
       <div class="matte-type-row" id="matteTypeRow"></div>
@@ -869,6 +1227,72 @@
         <button onclick="closeCropModal()">Cancel</button>
       </div>
     </div>
+  </div>
+
+  <div class="sync-modal" id="syncModal">
+    <div class="sync-content">
+      <h3>Google Drive Sync</h3>
+      <div class="settings-group">
+        <label>Drive API Key</label>
+        <input type="password" id="driveApiKey" placeholder="AIza...">
+        <div style="margin-top:6px">
+          <button onclick="saveDriveSettings()" style="font-size:12px;padding:4px 10px">Save Key</button>
+        </div>
+      </div>
+      <div class="sync-list" id="syncList"></div>
+      <div class="sync-add-form">
+        <h4>Add Sync</h4>
+        <div class="sync-form-row">
+          <input type="text" id="syncFolderUrl" placeholder="Google Drive folder URL">
+        </div>
+        <div class="sync-form-row">
+          <select id="syncDirection">
+            <option value="import">Import from Drive</option>
+            <option value="export">Export to Drive</option>
+            <option value="both">Both</option>
+          </select>
+          <select id="syncTarget">
+            <option value="all">All Artwork</option>
+          </select>
+        </div>
+        <div class="sync-form-row">
+          <button class="primary" onclick="addSync()">Add Sync</button>
+          <button onclick="closeSyncModal()">Close</button>
+        </div>
+      </div>
+      <div class="batch-progress" id="syncProgress"></div>
+    </div>
+  </div>
+
+  <div class="settings-modal" id="settingsModal">
+    <div class="settings-content">
+      <h3>AI Settings</h3>
+      <div class="settings-group">
+        <label>Claude API Key</label>
+        <input type="password" id="aiApiKey" placeholder="sk-ant-...">
+      </div>
+      <div class="settings-group">
+        <label>Model</label>
+        <input type="text" id="aiModel" value="claude-sonnet-4-20250514">
+      </div>
+      <div class="settings-group">
+        <label class="settings-toggle">
+          <input type="checkbox" id="aiAutoAnalyze">
+          Auto-analyze new uploads
+        </label>
+      </div>
+      <div class="settings-actions">
+        <button class="primary" onclick="saveAiSettings()">Save</button>
+        <button onclick="analyzeAllUnanalyzed()">Analyze All Unanalyzed</button>
+        <button onclick="closeSettings()">Close</button>
+      </div>
+      <div class="batch-progress" id="batchProgress"></div>
+    </div>
+  </div>
+
+  <div class="lightbox" id="lightbox" onclick="closeLightbox()">
+    <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+    <img id="lightboxImg" src="">
   </div>
 
   <script>
@@ -930,9 +1354,11 @@
       return res;
     }
 
-    function toast(msg, duration = 3000) {
+    const TOAST_ICONS = { success: '\u2713 ', error: '\u2717 ', info: '\u2139 ' };
+    function toast(msg, type = 'info', duration = 3000) {
       const el = document.getElementById('toast');
-      el.textContent = msg;
+      el.className = 'toast' + (type ? ' toast-' + type : '');
+      el.textContent = (TOAST_ICONS[type] || '') + msg;
       el.classList.add('show');
       setTimeout(() => el.classList.remove('show'), duration);
     }
@@ -961,7 +1387,7 @@
       } catch (e) {
         document.getElementById('tvStatus').innerHTML =
           `<span class="dot off"></span>TV offline`;
-        toast('Cannot connect to TV: ' + e.message);
+        toast('Cannot connect to TV: ' + e.message, 'error');
       }
 
       loadArt();
@@ -1014,7 +1440,7 @@
         const data = await api('/art');
         artItems = data.items || [];
         currentId = data.current_id;
-        if (data.stale) toast('Showing cached data — TV unreachable');
+        if (data.stale) toast('Showing cached data — TV unreachable', 'info');
         renderGrid();
         loadThumbnails();
       } catch (e) {
@@ -1033,12 +1459,12 @@
         renderGrid();
         if (newCount > 0) loadThumbnails();
         if (newCount || removedCount) {
-          toast(`${newCount} new, ${removedCount} removed`);
+          toast(`${newCount} new, ${removedCount} removed`, 'success');
         } else {
           toast('No changes');
         }
       } catch (e) {
-        toast('Refresh failed: ' + e.message);
+        toast('Refresh failed: ' + e.message, 'error');
       }
     }
 
@@ -1060,8 +1486,8 @@
       }
 
       if (!items.length) {
-        const msg = activeCollectionId ? 'No artwork in this collection' : 'No artwork on Frame';
-        const sub = activeCollectionId ? 'Add artwork via Select mode' : 'Upload some images to get started';
+        const msg = activeCollectionId ? 'This collection is empty' : 'Your Frame awaits';
+        const sub = activeCollectionId ? 'Select artwork and add them here' : 'Drop some images above to start building your gallery';
         grid.innerHTML = `<div class="empty-state"><h3>${msg}</h3><p>${sub}</p></div>`;
         return;
       }
@@ -1097,71 +1523,87 @@
       }).join('');
     }
 
-    async function loadThumbnails() {
-      const seen = new Set();
-      const uncached = artItems.filter(a => {
-        if (thumbCache[a.content_id] || seen.has(a.content_id)) return false;
-        seen.add(a.content_id);
-        return true;
-      });
-      if (!uncached.length) return;
+    let _thumbObserver = null;
+    let _pendingObserveIds = new Set();
+    let _observeBatchTimer = null;
 
+    function setupThumbObserver() {
+      if (_thumbObserver) _thumbObserver.disconnect();
+      _pendingObserveIds.clear();
+
+      _thumbObserver = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const el = entry.target;
+          const cid = el.id?.replace('thumb-', '');
+          if (cid && !thumbCache[cid]) {
+            _pendingObserveIds.add(cid);
+          }
+          _thumbObserver.unobserve(el);
+        }
+        if (_pendingObserveIds.size > 0) {
+          clearTimeout(_observeBatchTimer);
+          _observeBatchTimer = setTimeout(() => {
+            loadThumbnailBatch([..._pendingObserveIds]);
+            _pendingObserveIds.clear();
+          }, 100);
+        }
+      }, { rootMargin: '200px' });
+
+      document.querySelectorAll('.thumb.loading').forEach(el => {
+        _thumbObserver.observe(el);
+      });
+    }
+
+    async function loadThumbnailBatch(ids) {
+      if (!ids.length) return;
       const BATCH = 10;
-      for (let i = 0; i < uncached.length; i += BATCH) {
-        const batch = uncached.slice(i, i + BATCH);
-        const ids = batch.map(a => a.content_id);
+      for (let i = 0; i < ids.length; i += BATCH) {
+        const batch = ids.slice(i, i + BATCH);
         try {
           const data = await api('/thumbnails', {
             method: 'POST',
-            body: { content_ids: ids },
+            body: { content_ids: batch },
           });
           for (const [name, b64] of Object.entries(data.thumbnails)) {
             const dataUrl = 'data:image/jpeg;base64,' + b64;
-            const cid = ids.find(id => name.startsWith(id) || name === id);
+            const cid = batch.find(id => name.startsWith(id) || name === id);
             if (cid) {
               thumbCache[cid] = dataUrl;
-              const el = document.getElementById('thumb-' + cid);
-              if (el && el.classList?.contains('loading')) {
-                const img = document.createElement('img');
-                img.className = 'thumb';
-                img.src = dataUrl;
-                img.id = 'thumb-' + cid;
-                el.replaceWith(img);
-              }
+              replaceThumbEl(cid, dataUrl);
             }
           }
-          // Sequential fallback for unmatched ids
           const thumbEntries = Object.entries(data.thumbnails);
           thumbEntries.forEach(([name, b64], idx) => {
-            if (idx < ids.length && !thumbCache[ids[idx]]) {
+            if (idx < batch.length && !thumbCache[batch[idx]]) {
               const dataUrl = 'data:image/jpeg;base64,' + b64;
-              thumbCache[ids[idx]] = dataUrl;
-              const el = document.getElementById('thumb-' + ids[idx]);
-              if (el && el.classList?.contains('loading')) {
-                const img = document.createElement('img');
-                img.className = 'thumb';
-                img.src = dataUrl;
-                img.id = 'thumb-' + ids[idx];
-                el.replaceWith(img);
-              }
+              thumbCache[batch[idx]] = dataUrl;
+              replaceThumbEl(batch[idx], dataUrl);
             }
           });
         } catch {
-          for (const id of ids) {
+          for (const id of batch) {
             if (!thumbCache[id]) {
-              const el = document.getElementById('thumb-' + id);
-              if (el && el.classList?.contains('loading')) {
-                const img = document.createElement('img');
-                img.className = 'thumb';
-                img.src = '/api/thumbnail/' + id;
-                img.id = 'thumb-' + id;
-                el.replaceWith(img);
-              }
+              replaceThumbEl(id, '/api/thumbnail/' + id);
             }
           }
         }
       }
-      renderGrid();
+    }
+
+    function replaceThumbEl(cid, src) {
+      const el = document.getElementById('thumb-' + cid);
+      if (el && el.classList?.contains('loading')) {
+        const img = document.createElement('img');
+        img.className = 'thumb';
+        img.src = src;
+        img.id = 'thumb-' + cid;
+        el.replaceWith(img);
+      }
+    }
+
+    async function loadThumbnails() {
+      setupThumbObserver();
     }
 
     // --- Card interactions ---
@@ -1204,12 +1646,16 @@
       renderDetailTitle(detailItem);
       const thumbSrc = thumbCache[id] || document.getElementById('thumb-' + id)?.src || '';
       document.getElementById('detailThumb').src = thumbSrc;
+      const meta = artworkMeta[id];
+      const driveBadge = meta?.source === 'google_drive' ? '<div class="drive-badge">Synced from Google Drive</div>' : '';
       document.getElementById('detailInfo').innerHTML = `
         <div>ID: ${id}</div>
         <div>Category: ${detailItem.category_id || 'Unknown'}</div>
+        ${driveBadge}
       `;
 
       renderDetailCollections(id);
+      renderAiMeta(id);
       initMatteSelector(detailItem.matte_id);
 
       document.getElementById('detailPanel').classList.add('active');
@@ -1251,7 +1697,7 @@
     async function saveRename() {
       if (!detailItem) return;
       const newTitle = document.getElementById('detailTitleInput').value.trim();
-      if (!newTitle) { toast('Title cannot be empty'); return; }
+      if (!newTitle) { toast('Title cannot be empty', 'error'); return; }
       try {
         await api(`/artwork-meta/${detailItem.content_id}`, {
           method: 'PUT',
@@ -1261,9 +1707,9 @@
         artworkMeta[detailItem.content_id].title = newTitle;
         renderDetailTitle(detailItem);
         renderGrid();
-        toast('Title updated');
+        toast('Title updated', 'success');
       } catch (e) {
-        toast('Failed: ' + e.message);
+        toast('Failed: ' + e.message, 'error');
       }
     }
 
@@ -1364,9 +1810,9 @@
         try {
           await api('/matte', { method: 'POST', body: { content_id: detailItem.content_id, matte_id: matteId } });
           detailItem.matte_id = matteId;
-          toast('Matte updated');
+          toast('Matte updated', 'success');
         } catch (e) {
-          toast('Failed: ' + e.message);
+          toast('Failed: ' + e.message, 'error');
         }
       }, 500);
     }
@@ -1403,9 +1849,9 @@
         await api('/select', { method: 'POST', body: { content_id: detailItem.content_id } });
         currentId = detailItem.content_id;
         renderGrid();
-        toast('Now displaying');
+        toast('Now displaying', 'success');
       } catch (e) {
-        toast('Failed: ' + e.message);
+        toast('Failed: ' + e.message, 'error');
       } finally {
         hideLoading();
       }
@@ -1420,10 +1866,10 @@
         delete thumbCache[detailItem.content_id];
         delete artworkMeta[detailItem.content_id];
         closeDetail();
-        toast('Deleted');
+        toast('Deleted', 'success');
         loadArt();
       } catch (e) {
-        toast('Failed: ' + e.message);
+        toast('Failed: ' + e.message, 'error');
       } finally {
         hideLoading();
       }
@@ -1439,10 +1885,10 @@
         for (const id of selectedIds) delete artworkMeta[id];
         selectedIds.clear();
         toggleSelectMode();
-        toast('Deleted');
+        toast('Deleted', 'success');
         loadArt();
       } catch (e) {
-        toast('Failed: ' + e.message);
+        toast('Failed: ' + e.message, 'error');
       } finally {
         hideLoading();
       }
@@ -1461,11 +1907,11 @@
         artModeOn = !artModeOn;
         await api('/artmode', { method: 'POST', body: { mode: artModeOn } });
         updateArtModeButton();
-        toast(artModeOn ? 'Art mode on' : 'Art mode off');
+        toast(artModeOn ? 'Art mode on' : 'Art mode off', 'success');
       } catch (e) {
         artModeOn = !artModeOn;
         updateArtModeButton();
-        toast('Failed: ' + e.message);
+        toast('Failed: ' + e.message, 'error');
       }
     }
 
@@ -1498,9 +1944,9 @@
       try {
         await api('/collections', { method: 'POST', body: { name: name.trim() } });
         await loadCollections();
-        toast('Collection created');
+        toast('Collection created', 'success');
       } catch (e) {
-        toast('Failed: ' + e.message);
+        toast('Failed: ' + e.message, 'error');
       }
     }
 
@@ -1532,9 +1978,9 @@
           body: { content_ids: [...selectedIds] },
         });
         await loadCollections();
-        toast(`Added ${selectedIds.size} item(s) to collection`);
+        toast(`Added ${selectedIds.size} item(s) to collection`, 'success');
       } catch (e) {
-        toast('Failed: ' + e.message);
+        toast('Failed: ' + e.message, 'error');
       }
     }
 
@@ -1547,9 +1993,9 @@
         await loadCollections();
         renderDetailCollections(contentId);
         if (activeCollectionId) renderGrid();
-        toast('Removed from collection');
+        toast('Removed from collection', 'success');
       } catch (e) {
-        toast('Failed: ' + e.message);
+        toast('Failed: ' + e.message, 'error');
       }
     }
 
@@ -1782,7 +2228,7 @@
       const ctx = offscreen.getContext('2d');
       ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, outW, outH);
       offscreen.toBlob(blob => {
-        if (!blob) { toast('Crop failed'); return; }
+        if (!blob) { toast('Crop failed', 'error'); return; }
         const name = cropState.file.name.replace(/\.[^.]+$/, '') + '_cropped.jpg';
         const croppedFile = new File([blob], name, { type: 'image/jpeg' });
         pendingFiles[cropState.fileIndex] = croppedFile;
@@ -1963,12 +2409,12 @@
             artworkMeta[result.content_id] = { title: result.title, width: result.width, height: result.height };
           }
         } catch (e) {
-          toast(`Failed to upload ${file.name}: ${e.message}`);
+          toast(`Failed to upload ${file.name}: ${e.message}`, 'error');
         }
       }
 
       cancelUpload();
-      toast(`Uploaded ${uploaded} file(s)`);
+      toast(`Uploaded ${uploaded} file(s)`, 'success');
       loadArt();
     }
 
@@ -1977,6 +2423,282 @@
       const dd = document.getElementById('addToCollectionDropdown');
       if (!dd.contains(e.target)) {
         document.getElementById('collectionDropdownMenu').classList.remove('open');
+      }
+    });
+
+    // --- AI Settings ---
+
+    async function openSettings() {
+      try {
+        const config = await api('/ai/config');
+        document.getElementById('aiApiKey').value = '';
+        document.getElementById('aiApiKey').placeholder = config.claude?.api_key || 'sk-ant-...';
+        document.getElementById('aiModel').value = config.claude?.model || 'claude-sonnet-4-20250514';
+        document.getElementById('aiAutoAnalyze').checked = config.auto_analyze || false;
+      } catch {}
+      document.getElementById('batchProgress').textContent = '';
+      document.getElementById('settingsModal').classList.add('active');
+    }
+
+    function closeSettings() {
+      document.getElementById('settingsModal').classList.remove('active');
+    }
+
+    async function saveAiSettings() {
+      const apiKey = document.getElementById('aiApiKey').value.trim();
+      const model = document.getElementById('aiModel').value.trim();
+      const autoAnalyze = document.getElementById('aiAutoAnalyze').checked;
+      try {
+        const body = { auto_analyze: autoAnalyze, claude: { model } };
+        if (apiKey) body.claude.api_key = apiKey;
+        await api('/ai/config', { method: 'PUT', body });
+        toast('AI settings saved', 'success');
+        if (apiKey) document.getElementById('aiApiKey').placeholder = '...' + apiKey.slice(-4);
+        document.getElementById('aiApiKey').value = '';
+      } catch (e) {
+        toast('Failed: ' + e.message, 'error');
+      }
+    }
+
+    async function analyzeAllUnanalyzed() {
+      const progress = document.getElementById('batchProgress');
+      progress.textContent = 'Starting batch analysis...';
+      try {
+        const result = await api('/ai/analyze-batch', { method: 'POST', body: {} });
+        progress.textContent = `Done: ${result.analyzed} analyzed, ${result.skipped} skipped, ${result.failed} failed`;
+        await loadArtworkMeta();
+        if (detailItem) renderAiMeta(detailItem.content_id);
+      } catch (e) {
+        progress.textContent = 'Failed: ' + e.message;
+      }
+    }
+
+    // --- AI metadata display ---
+
+    function renderAiMeta(contentId) {
+      const section = document.getElementById('aiMetaSection');
+      const meta = artworkMeta[contentId];
+      const ai = meta?.ai_meta;
+
+      if (!ai) {
+        section.style.display = 'block';
+        section.innerHTML = `
+          <h4>AI Analysis</h4>
+          <button class="ai-analyze-btn" onclick="analyzeCurrentArtwork()">Analyze with AI</button>
+        `;
+        return;
+      }
+
+      const vibes = (ai.vibes || []).map(v => `<span class="vibe-pill">${v}</span>`).join('');
+      section.style.display = 'block';
+      section.innerHTML = `
+        <h4>AI Analysis</h4>
+        <div class="ai-meta-row"><span class="label">Artist</span><span class="value">${ai.artist || 'Unknown'}</span></div>
+        <div class="ai-meta-row"><span class="label">Year</span><span class="value">${ai.year || 'Unknown'}</span></div>
+        <div class="ai-meta-row"><span class="label">Medium</span><span class="value">${ai.medium || 'Unknown'}</span></div>
+        <div class="ai-meta-row"><span class="label">School</span><span class="value">${ai.school || 'N/A'}</span></div>
+        ${vibes ? `<div class="ai-vibes">${vibes}</div>` : ''}
+        ${ai.description ? `<div class="ai-description">${ai.description}</div>` : ''}
+        <button class="ai-analyze-btn" onclick="analyzeCurrentArtwork()">Re-analyze</button>
+      `;
+    }
+
+    async function analyzeCurrentArtwork() {
+      if (!detailItem) return;
+      const section = document.getElementById('aiMetaSection');
+      const btn = section.querySelector('.ai-analyze-btn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Analyzing...'; }
+      try {
+        const result = await api(`/ai/analyze/${detailItem.content_id}`, { method: 'POST' });
+        artworkMeta[detailItem.content_id] = artworkMeta[detailItem.content_id] || {};
+        artworkMeta[detailItem.content_id].ai_meta = result.ai_meta;
+        renderAiMeta(detailItem.content_id);
+        toast('AI analysis complete', 'success');
+      } catch (e) {
+        toast('Analysis failed: ' + e.message, 'error');
+        if (btn) { btn.disabled = false; btn.textContent = 'Analyze with AI'; }
+      }
+    }
+
+    // --- Drive Sync ---
+
+    async function openSyncModal() {
+      try {
+        const data = await api('/drive/syncs');
+        document.getElementById('driveApiKey').value = '';
+        document.getElementById('driveApiKey').placeholder = data.api_key || 'AIza...';
+        renderSyncList(data.syncs || []);
+      } catch {
+        renderSyncList([]);
+      }
+      const targetSel = document.getElementById('syncTarget');
+      targetSel.innerHTML = '<option value="all">All Artwork</option>' +
+        collections.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+      document.getElementById('syncProgress').textContent = '';
+      document.getElementById('syncModal').classList.add('active');
+    }
+
+    function closeSyncModal() {
+      document.getElementById('syncModal').classList.remove('active');
+    }
+
+    function renderSyncList(syncs) {
+      const list = document.getElementById('syncList');
+      if (!syncs.length) {
+        list.innerHTML = '<div style="font-size:13px;color:var(--text2);padding:8px 0">No syncs configured</div>';
+        return;
+      }
+      list.innerHTML = syncs.map(s => `
+        <div class="sync-item">
+          <div class="sync-item-info">
+            <div class="sync-item-name">${s.folder_name || 'Unknown'}</div>
+            <div class="sync-item-meta">${s.direction} \u2022 ${s.last_sync_at ? 'Last: ' + new Date(s.last_sync_at).toLocaleString() : 'Never synced'}</div>
+          </div>
+          <div class="sync-item-actions">
+            <button class="primary" onclick="runSync('${s.id}')">Sync Now</button>
+            <button class="danger" onclick="deleteSync('${s.id}')">Remove</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function saveDriveSettings() {
+      const apiKey = document.getElementById('driveApiKey').value.trim();
+      if (!apiKey) return;
+      try {
+        await api('/drive/settings', { method: 'POST', body: { api_key: apiKey } });
+        toast('Drive API key saved', 'success');
+        document.getElementById('driveApiKey').placeholder = '...' + apiKey.slice(-4);
+        document.getElementById('driveApiKey').value = '';
+      } catch (e) {
+        toast('Failed: ' + e.message, 'error');
+      }
+    }
+
+    async function addSync() {
+      const url = document.getElementById('syncFolderUrl').value.trim();
+      const direction = document.getElementById('syncDirection').value;
+      const target = document.getElementById('syncTarget').value;
+      if (!url) { toast('Enter a Drive folder URL', 'error'); return; }
+      try {
+        const sync = await api('/drive/syncs', { method: 'POST', body: { folder_url: url, direction, target } });
+        document.getElementById('syncFolderUrl').value = '';
+        toast('Sync added: ' + sync.folder_name, 'success');
+        openSyncModal();
+      } catch (e) {
+        toast('Failed: ' + e.message, 'error');
+      }
+    }
+
+    async function deleteSync(syncId) {
+      if (!confirm('Remove this sync configuration?')) return;
+      try {
+        await api(`/drive/syncs/${syncId}`, { method: 'DELETE' });
+        toast('Sync removed', 'success');
+        openSyncModal();
+      } catch (e) {
+        toast('Failed: ' + e.message, 'error');
+      }
+    }
+
+    async function runSync(syncId) {
+      const progress = document.getElementById('syncProgress');
+      progress.textContent = 'Syncing...';
+      try {
+        const result = await api(`/drive/syncs/${syncId}/run`, { method: 'POST' });
+        progress.textContent = `Done: ${result.imported} imported, ${result.skipped} skipped, ${result.failed} failed`;
+        if (result.imported > 0) {
+          await loadArtworkMeta();
+          loadArt();
+        }
+        openSyncModal();
+      } catch (e) {
+        progress.textContent = 'Sync failed: ' + e.message;
+      }
+    }
+
+    // --- Lightbox ---
+
+    function openLightbox() {
+      if (!detailItem) return;
+      const src = thumbCache[detailItem.content_id] || document.getElementById('detailThumb').src;
+      if (!src) return;
+      document.getElementById('lightboxImg').src = src;
+      document.getElementById('lightbox').classList.add('active');
+    }
+
+    function closeLightbox() {
+      document.getElementById('lightbox').classList.remove('active');
+    }
+
+    // --- Detail navigation ---
+
+    function getVisibleItems() {
+      const seen = new Set();
+      let items = artItems.filter(a => {
+        if (seen.has(a.content_id)) return false;
+        seen.add(a.content_id);
+        return true;
+      });
+      if (activeCollectionId) {
+        const col = collections.find(c => c.id === activeCollectionId);
+        if (col) {
+          const colIds = new Set(col.content_ids);
+          items = items.filter(a => colIds.has(a.content_id));
+        }
+      }
+      return items;
+    }
+
+    function navigateDetail(direction) {
+      if (!detailItem) return;
+      const items = getVisibleItems();
+      const idx = items.findIndex(a => a.content_id === detailItem.content_id);
+      if (idx === -1) return;
+      const newIdx = idx + direction;
+      if (newIdx < 0 || newIdx >= items.length) return;
+      openDetail(items[newIdx].content_id);
+    }
+
+    // --- Keyboard shortcuts ---
+
+    document.addEventListener('keydown', e => {
+      if (e.target.matches('input, select, textarea')) return;
+
+      const lightboxOpen = document.getElementById('lightbox').classList.contains('active');
+      const cropOpen = document.getElementById('cropModal').classList.contains('active');
+      const settingsOpen = document.getElementById('settingsModal').classList.contains('active');
+      const syncOpen = document.getElementById('syncModal').classList.contains('active');
+      const detailOpen = document.getElementById('detailPanel').classList.contains('active');
+
+      if (e.key === 'Escape') {
+        if (lightboxOpen) { closeLightbox(); return; }
+        if (cropOpen) { closeCropModal(); return; }
+        if (settingsOpen) { closeSettings(); return; }
+        if (syncOpen) { closeSyncModal(); return; }
+        if (detailOpen) { closeDetail(); return; }
+        return;
+      }
+
+      if (lightboxOpen) {
+        if (e.key === 'ArrowLeft') { navigateDetail(-1); openLightbox(); return; }
+        if (e.key === 'ArrowRight') { navigateDetail(1); openLightbox(); return; }
+        return;
+      }
+
+      if (cropOpen) return;
+
+      if (detailOpen) {
+        if (e.key === 'ArrowLeft') { navigateDetail(-1); return; }
+        if (e.key === 'ArrowRight') { navigateDetail(1); return; }
+        return;
+      }
+
+      if (e.key === 's') { toggleSelectMode(); return; }
+      if (e.key === 'r') { refreshArt(); return; }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectMode && selectedIds.size) {
+        deleteSelected();
+        return;
       }
     });
 
