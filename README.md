@@ -42,7 +42,7 @@ Open **http://localhost:8000** in your browser.
 
 On first connection, your TV will prompt you to allow the remote connection — accept it on the TV. A token is saved locally so you won't need to re-authorize.
 
-A sample artwork is included in `assets/sample/` — drag it into the upload zone to get started.
+A sample artwork is included in `assets/sample/` — drag it into the upload zone to get started. It's not 16:9, so the crop editor will open automatically; this is a good way to see how it works.
 
 ## AI Art Analysis
 
@@ -141,6 +141,8 @@ Built on:
 - **[FastAPI](https://github.com/fastapi/fastapi)** (MIT), **[Uvicorn](https://github.com/encode/uvicorn)** (BSD-3-Clause), **[Pillow](https://github.com/python-pillow/Pillow)** (HPND), **[httpx](https://github.com/encode/httpx)** (BSD-3-Clause), **[python-multipart](https://github.com/Kludex/python-multipart)** (Apache-2.0)
 
 AI identification uses the [Google Cloud Vision API](https://cloud.google.com/vision/docs/detecting-web). Analysis supports the [Claude Messages API](https://docs.anthropic.com/en/api/messages) and [OpenAI Chat Completions API](https://platform.openai.com/docs/api-reference/chat).
+
+Sample artwork: Vincent van Gogh, *The Starry Night* (1889). Public domain, sourced from the [Museum of Modern Art](https://www.moma.org/collection/works/79802) via [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg).
 
 Inspired by **[ha-samsungtv-smart](https://github.com/TheFab21/ha-samsungtv-smart)** by [TheFab21](https://github.com/TheFab21), which demonstrated the scope of Samsung's Art Mode API.
 

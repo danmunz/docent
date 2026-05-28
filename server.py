@@ -63,7 +63,11 @@ def get_tv() -> SamsungTVWS:
 
 def art_connection(tv: SamsungTVWS):
     art = tv.art()
-    art.open()
+    try:
+        art.open()
+    except Exception:
+        tv.close()
+        raise
     return art
 
 
@@ -411,7 +415,10 @@ async def delete_art(body: dict):
 
 @app.get("/api/mattes")
 async def list_mattes():
-    tv = get_tv()
+    try:
+        tv = get_tv()
+    except Exception:
+        raise HTTPException(502, "Cannot reach TV")
     art = art_connection(tv)
     try:
         return art.get_matte_list()
@@ -425,7 +432,10 @@ async def change_matte(body: dict):
     matte_id = body.get("matte_id", "none")
     if not content_id:
         raise HTTPException(400, "content_id required")
-    tv = get_tv()
+    try:
+        tv = get_tv()
+    except Exception:
+        raise HTTPException(502, "Cannot reach TV")
     art = art_connection(tv)
     try:
         log.info("Changing matte: content_id=%s, matte_id=%s", content_id, matte_id)
@@ -448,7 +458,10 @@ async def toggle_favourite(body: dict):
     status = body.get("status", "on")
     if not content_id:
         raise HTTPException(400, "content_id required")
-    tv = get_tv()
+    try:
+        tv = get_tv()
+    except Exception:
+        raise HTTPException(502, "Cannot reach TV")
     art = art_connection(tv)
     try:
         art.set_favourite(content_id, status)
@@ -464,7 +477,10 @@ async def set_artmode(body: dict):
     mode = body.get("mode")
     if mode is None:
         raise HTTPException(400, "mode required (true/false)")
-    tv = get_tv()
+    try:
+        tv = get_tv()
+    except Exception:
+        raise HTTPException(502, "Cannot reach TV")
     art = art_connection(tv)
     try:
         art.set_artmode(mode)
@@ -477,7 +493,10 @@ async def set_artmode(body: dict):
 
 @app.get("/api/filters")
 async def get_filters():
-    tv = get_tv()
+    try:
+        tv = get_tv()
+    except Exception:
+        raise HTTPException(502, "Cannot reach TV")
     art = art_connection(tv)
     try:
         return {"filters": art.get_photo_filter_list()}
@@ -491,7 +510,10 @@ async def set_filter(body: dict):
     filter_id = body.get("filter_id")
     if not content_id or not filter_id:
         raise HTTPException(400, "content_id and filter_id required")
-    tv = get_tv()
+    try:
+        tv = get_tv()
+    except Exception:
+        raise HTTPException(502, "Cannot reach TV")
     art = art_connection(tv)
     try:
         art.set_photo_filter(content_id, filter_id)
@@ -507,7 +529,10 @@ async def set_slideshow(body: dict):
     duration = body.get("duration", 0)
     shuffle = body.get("shuffle", True)
     category_id = body.get("category_id")
-    tv = get_tv()
+    try:
+        tv = get_tv()
+    except Exception:
+        raise HTTPException(502, "Cannot reach TV")
     art = art_connection(tv)
     try:
         art.set_slideshow_status(
