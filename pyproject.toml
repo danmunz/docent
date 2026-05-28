@@ -1,5 +1,5 @@
 [project]
-name = "frame-art-manager"
+name = "docent"
 version = "0.1.0"
 requires-python = ">=3.10"
 dependencies = [
@@ -9,6 +9,7 @@ dependencies = [
     "python-multipart>=0.0.9",
     "pillow>=10.0",
     "httpx>=0.27",
+    "python-dotenv>=1.0",
 ]
 
 [project.optional-dependencies]
@@ -19,7 +20,7 @@ test = [
 ]
 
 [project.scripts]
-frame-art-manager = "server:main"
+docent = "server:main"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -1,8 +1,22 @@
+# Python
 __pycache__/
 *.pyc
+*.egg-info/
+
+# Virtual environment
 .venv/
+
+# User data (auto-created on first run)
 .tv-token
 .cache/
 ai_config.json
 api_usage.json
 drive_sync.json
+artwork_meta.json
+collections.json
+
+# Environment config
+.env
+
+# IDE / tools
+.playwright-mcp/

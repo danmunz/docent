@@ -5,6 +5,7 @@ import base64
 import io
 import json
 import logging
+import os
 import re
 import uuid
 from contextlib import asynccontextmanager
@@ -14,12 +15,19 @@ from pathlib import Path
 import httpx
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
+from starlette.staticfiles import StaticFiles
 from PIL import Image
 from samsungtvws import SamsungTVWS
 
-TV_IP = "192.168.1.36"
-TV_PORT = 8001
-TV_TIMEOUT = 15
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+TV_IP = os.environ.get("DOCENT_TV_IP", "")
+TV_PORT = int(os.environ.get("DOCENT_TV_PORT", "8001"))
+TV_TIMEOUT = int(os.environ.get("DOCENT_TV_TIMEOUT", "15"))
 TOKEN_FILE = Path(__file__).parent / ".tv-token"
 
 CACHE_DIR = Path(__file__).parent / ".cache"
@@ -32,7 +40,7 @@ API_USAGE_FILE = Path(__file__).parent / "api_usage.json"
 DRIVE_SYNC_FILE = Path(__file__).parent / "drive_sync.json"
 
 logging.basicConfig(level=logging.INFO)
-log = logging.getLogger("frame-art-manager")
+log = logging.getLogger("docent")
 
 _art_cache: list[dict] | None = None
 _current_id_cache: str | None = None
@@ -161,11 +169,15 @@ async def lifespan(app: FastAPI):
     CACHE_DIR.mkdir(exist_ok=True)
     THUMB_DIR.mkdir(exist_ok=True)
     ORIGINALS_DIR.mkdir(exist_ok=True)
-    log.info("Frame Art Manager starting — TV at %s:%s", TV_IP, TV_PORT)
+    if not TV_IP:
+        log.warning("DOCENT_TV_IP is not set — copy .env.example to .env and add your TV's IP address")
+    else:
+        log.info("Docent starting — TV at %s:%s", TV_IP, TV_PORT)
     yield
 
 
-app = FastAPI(title="Frame Art Manager", lifespan=lifespan)
+app = FastAPI(title="Docent", lifespan=lifespan)
+app.mount("/assets", StaticFiles(directory=Path(__file__).parent / "assets"), name="assets")
 
 
 # --- Static frontend ---
@@ -1713,7 +1725,9 @@ async def atmosphere_geocode(body: dict):
 
 def main():
     import uvicorn
-    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)
+    host = os.environ.get("DOCENT_HOST", "0.0.0.0")
+    port = int(os.environ.get("DOCENT_PORT", "8000"))
+    uvicorn.run("server:app", host=host, port=port, reload=True)
 
 
 if __name__ == "__main__":
