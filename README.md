@@ -1,6 +1,6 @@
 # Frame Art Manager
 
-A local web interface for managing custom artwork on your Samsung Frame TV.
+A local web interface for managing custom artwork on your Samsung Frame TV. Gallery-inspired design with a light museum palette, serif headings, and curated motion.
 
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
 
@@ -105,6 +105,7 @@ The Settings modal (gear icon) is organized into three sections:
 frame-art-manager/
   server.py          # FastAPI backend — TV WebSocket API, AI pipeline, Drive sync
   index.html         # Single-page frontend (vanilla HTML/CSS/JS)
+  tests/             # Pytest suite (62 integration tests, run via pre-commit hook)
   pyproject.toml     # Dependencies and project metadata
   .tv-token          # Auto-generated auth token (git-ignored)
   ai_config.json     # Multi-provider AI settings (git-ignored, auto-created)
