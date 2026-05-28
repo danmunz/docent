@@ -42,6 +42,8 @@ Open **http://localhost:8000** in your browser.
 
 On first connection, your TV will prompt you to allow the remote connection — accept it on the TV. A token is saved locally so you won't need to re-authorize.
 
+A sample artwork is included in `assets/sample/` — drag it into the upload zone to get started.
+
 ## AI Art Analysis
 
 Docent's analysis pipeline has two stages:
@@ -111,6 +113,7 @@ API keys for Claude, OpenAI, and Google Vision are managed through the Settings 
 docent/
   server.py          # FastAPI backend — TV control, AI pipeline, Drive sync
   index.html         # Single-page frontend (vanilla HTML/CSS/JS)
+  assets/            # Logo, fonts, and sample artwork
   tests/             # 62 integration tests, run via pre-commit hook
   pyproject.toml     # Dependencies and project metadata
   .env.example       # Environment variable template
