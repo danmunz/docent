@@ -140,8 +140,11 @@ Data files are auto-created on first run and git-ignored: `.tv-token`, `ai_confi
 ## Development
 
 ```bash
+# Run the server
+uv run python3 server.py
+
 # Run tests
-uv run pytest
+uv run python3 -m pytest
 
 # Install with test dependencies
 uv pip install -e ".[test]"
