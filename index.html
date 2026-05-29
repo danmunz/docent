@@ -180,7 +180,7 @@
 
   .tv-status {
     font-size: 13px;
-    color: var(--text2);
+    color: #564F4A;
   }
 
   .tv-status .dot {
@@ -261,9 +261,9 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    color: var(--text2);
+    color: #564F4A;
   }
-  .zoom-control span {
+  .zoom-control button {
     font-size: 18px;
     cursor: pointer;
     user-select: none;
@@ -271,7 +271,7 @@
     text-align: center;
     line-height: 1;
   }
-  .zoom-control span:hover { color: var(--text); }
+  .zoom-control button:hover { color: var(--text); }
   .zoom-control input[type="range"] {
     width: 80px;
     accent-color: var(--accent);
@@ -1663,8 +1663,9 @@
     </div>
   </header>
 
+  <main>
   <div class="upload-zone" id="uploadZone">
-    <h3>Upload Artwork</h3>
+    <h2 style="font-size:inherit;font-weight:inherit">Upload Artwork</h2>
     <p>Drag art here. Your TV deserves it.</p>
     <input type="file" id="fileInput" accept="image/*" multiple>
   </div>
@@ -1689,7 +1690,7 @@
 
   <div class="toolbar" id="toolbar">
     <div class="collection-controls">
-      <select id="collectionFilter" onchange="filterByCollection(this.value)">
+      <select id="collectionFilter" aria-label="Filter by collection" onchange="filterByCollection(this.value)">
         <option value="">All Artwork</option>
       </select>
       <button class="btn-icon" onclick="createCollection()" title="New collection">+</button>
@@ -1697,12 +1698,12 @@
     <button id="btnSelectMode" onclick="toggleSelectMode()" title="Toggle artwork selection mode">Select</button>
     <span class="selection-info" id="selectionInfo"></span>
     <div class="zoom-control">
-      <span onclick="zoomOut()" title="Smaller">&minus;</span>
+      <button onclick="zoomOut()" aria-label="Smaller thumbnails" style="background:none;border:none;font:inherit;color:inherit;padding:0">&minus;</button>
       <input type="range" id="zoomSlider" min="120" max="400" value="220" step="20"
-             oninput="setZoom(this.value)" title="Thumbnail size">
-      <span onclick="zoomIn()" title="Larger">+</span>
+             oninput="setZoom(this.value)" aria-label="Thumbnail size">
+      <button onclick="zoomIn()" aria-label="Larger thumbnails" style="background:none;border:none;font:inherit;color:inherit;padding:0">+</button>
     </div>
-    <select id="sortSelect" onchange="setSort(this.value)">
+    <select id="sortSelect" aria-label="Sort artwork by" onchange="setSort(this.value)">
       <option value="none">Unsorted</option>
       <option value="title">Title</option>
       <option value="artist">Artist</option>
@@ -1722,6 +1723,7 @@
 
   <div class="group-nav" id="groupNav"></div>
   <div class="grid" id="artGrid"></div>
+  </main>
 
   <div class="overlay" id="overlay" onclick="closeDetail()"></div>
   <div class="detail-panel" id="detailPanel">
@@ -1736,7 +1738,7 @@
       <button onclick="cancelRename()" style="padding:6px 10px" title="Cancel renaming">Cancel</button>
     </div>
     <div class="matte-preview-box" id="mattePreviewBox">
-      <img id="detailThumb" src="" style="cursor:zoom-in" onclick="openLightbox()">
+      <img id="detailThumb" src="" alt="" style="cursor:zoom-in" onclick="openLightbox()">
     </div>
     <div class="detail-info" id="detailInfo"></div>
     <div class="detail-collections" id="detailCollections"></div>
@@ -1820,7 +1822,7 @@
       </div>
       <div id="atmosphereReveal" style="display:none">
         <div class="atmosphere-weather" id="atmosphereWeather"></div>
-        <img class="atmosphere-artwork-img" id="atmosphereImg" src="">
+        <img class="atmosphere-artwork-img" id="atmosphereImg" src="" alt="">
         <div class="atmosphere-title" id="atmosphereTitle"></div>
         <div class="atmosphere-note" id="atmosphereNote"></div>
         <div class="atmosphere-vibes" id="atmosphereVibes"></div>
@@ -1934,7 +1936,7 @@
 
   <div class="lightbox" id="lightbox" onclick="closeLightbox()">
     <button class="lightbox-close" onclick="closeLightbox()" title="Close fullscreen view" aria-label="Close">&times;</button>
-    <img id="lightboxImg" src="">
+    <img id="lightboxImg" src="" alt="">
   </div>
 
   <script>
@@ -2404,7 +2406,7 @@
           ${aspectBadge}
           ${failBadge}
           ${cached
-            ? `<img class="thumb" id="thumb-${id}" src="${cached}">`
+            ? `<img class="thumb" id="thumb-${id}" src="${cached}" alt="${title.replace(/"/g, '&quot;')}">`
             : `<div class="thumb loading" id="thumb-${id}">Loading...</div>`}
           <div class="title-overlay"><span>${title}</span></div>
         </div>`;
@@ -2539,14 +2541,6 @@
               replaceThumbEl(cid, dataUrl);
             }
           }
-          const thumbEntries = Object.entries(data.thumbnails);
-          thumbEntries.forEach(([name, b64], idx) => {
-            if (idx < batch.length && !thumbCache[batch[idx]]) {
-              const dataUrl = 'data:image/jpeg;base64,' + b64;
-              thumbCache[batch[idx]] = dataUrl;
-              replaceThumbEl(batch[idx], dataUrl);
-            }
-          });
           // Retry missing IDs returned by the server
           const stillMissing = (data.missing || []).filter(id => !thumbCache[id]);
           if (stillMissing.length && attempt < 2) {
@@ -2576,6 +2570,8 @@
       img.className = 'thumb';
       img.src = src;
       img.id = 'thumb-' + cid;
+      const item = artItems.find(a => a.content_id === cid);
+      img.alt = item ? getArtworkTitle(item) : '';
       img.onerror = () => showThumbError(cid);
       el.replaceWith(img);
     }
@@ -2652,6 +2648,7 @@
       renderDetailTitle(detailItem);
       const thumbSrc = thumbCache[id] || document.getElementById('thumb-' + id)?.src || '';
       document.getElementById('detailThumb').src = thumbSrc;
+      document.getElementById('detailThumb').alt = getArtworkTitle(detailItem);
       const meta = artworkMeta[id];
       const driveBadge = meta?.source === 'google_drive' ? '<div class="drive-badge">Synced from Google Drive</div>' : '';
       document.getElementById('detailInfo').innerHTML = `
@@ -3852,6 +3849,7 @@
       const img = document.getElementById('atmosphereImg');
       img.classList.remove('revealed');
       img.src = thumbCache[data.content_id] || `/api/thumbnail/${data.content_id}`;
+      img.alt = data.artwork_title || '';
 
       document.getElementById('atmosphereTitle').textContent = data.artwork_title;
       document.getElementById('atmosphereTitle').classList.remove('revealed');
@@ -3923,6 +3921,7 @@
       const src = thumbCache[detailItem.content_id] || document.getElementById('detailThumb').src;
       if (!src) return;
       document.getElementById('lightboxImg').src = src;
+      document.getElementById('lightboxImg').alt = getArtworkTitle(detailItem);
       document.getElementById('lightbox').classList.add('active');
     }
 
