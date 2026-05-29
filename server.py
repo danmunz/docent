@@ -46,6 +46,8 @@ log = logging.getLogger("docent")
 _art_cache: list[dict] | None = None
 _current_id_cache: str | None = None
 _tv_lock = asyncio.Lock()
+_meta_lock = asyncio.Lock()
+_collections_lock = asyncio.Lock()
 _nws_station_cache: dict[str, str] = {}
 
 
@@ -385,15 +387,16 @@ async def upload_art(
         analysis_img.save(buf, format="JPEG", quality=80)
         (ORIGINALS_DIR / f"{content_id}.jpg").write_bytes(buf.getvalue())
 
-        meta = _load_artwork_meta()
-        meta["artwork"][content_id] = {
-            "title": original_name,
-            "original_filename": file.filename or "",
-            "width": w,
-            "height": h,
-            "uploaded_at": datetime.now(timezone.utc).isoformat(),
-        }
-        _save_artwork_meta(meta)
+        async with _meta_lock:
+            meta = _load_artwork_meta()
+            meta["artwork"][content_id] = {
+                "title": original_name,
+                "original_filename": file.filename or "",
+                "width": w,
+                "height": h,
+                "uploaded_at": datetime.now(timezone.utc).isoformat(),
+            }
+            _save_artwork_meta(meta)
 
         ai_result = None
         ai_config = _load_ai_config()
@@ -442,10 +445,11 @@ async def delete_art(body: dict):
         for cid in content_ids:
             (THUMB_DIR / f"{cid}.jpg").unlink(missing_ok=True)
         _invalidate_art_cache()
-        meta = _load_artwork_meta()
-        for cid in content_ids:
-            meta["artwork"].pop(cid, None)
-        _save_artwork_meta(meta)
+        async with _meta_lock:
+            meta = _load_artwork_meta()
+            for cid in content_ids:
+                meta["artwork"].pop(cid, None)
+            _save_artwork_meta(meta)
         return {"ok": ok}
     finally:
         tv.close()
@@ -626,15 +630,16 @@ async def create_collection(body: dict):
     name = body.get("name", "").strip()
     if not name:
         raise HTTPException(400, "name required")
-    data = _load_collections()
-    collection = {
-        "id": str(uuid.uuid4()),
-        "name": name,
-        "content_ids": [],
-        "created": datetime.now(timezone.utc).isoformat(),
-    }
-    data["collections"].append(collection)
-    _save_collections(data)
+    async with _collections_lock:
+        data = _load_collections()
+        collection = {
+            "id": str(uuid.uuid4()),
+            "name": name,
+            "content_ids": [],
+            "created": datetime.now(timezone.utc).isoformat(),
+        }
+        data["collections"].append(collection)
+        _save_collections(data)
     return collection
 
 
@@ -643,23 +648,25 @@ async def rename_collection(collection_id: str, body: dict):
     name = body.get("name", "").strip()
     if not name:
         raise HTTPException(400, "name required")
-    data = _load_collections()
-    for c in data["collections"]:
-        if c["id"] == collection_id:
-            c["name"] = name
-            _save_collections(data)
-            return c
+    async with _collections_lock:
+        data = _load_collections()
+        for c in data["collections"]:
+            if c["id"] == collection_id:
+                c["name"] = name
+                _save_collections(data)
+                return c
     raise HTTPException(404, "Collection not found")
 
 
 @app.delete("/api/collections/{collection_id}")
 async def delete_collection(collection_id: str):
-    data = _load_collections()
-    before = len(data["collections"])
-    data["collections"] = [c for c in data["collections"] if c["id"] != collection_id]
-    if len(data["collections"]) == before:
-        raise HTTPException(404, "Collection not found")
-    _save_collections(data)
+    async with _collections_lock:
+        data = _load_collections()
+        before = len(data["collections"])
+        data["collections"] = [c for c in data["collections"] if c["id"] != collection_id]
+        if len(data["collections"]) == before:
+            raise HTTPException(404, "Collection not found")
+        _save_collections(data)
     return {"ok": True}
 
 
@@ -668,15 +675,16 @@ async def add_to_collection(collection_id: str, body: dict):
     content_ids = body.get("content_ids", [])
     if not content_ids:
         raise HTTPException(400, "content_ids required")
-    data = _load_collections()
-    for c in data["collections"]:
-        if c["id"] == collection_id:
-            existing = set(c["content_ids"])
-            for cid in content_ids:
-                if cid not in existing:
-                    c["content_ids"].append(cid)
-            _save_collections(data)
-            return c
+    async with _collections_lock:
+        data = _load_collections()
+        for c in data["collections"]:
+            if c["id"] == collection_id:
+                existing = set(c["content_ids"])
+                for cid in content_ids:
+                    if cid not in existing:
+                        c["content_ids"].append(cid)
+                _save_collections(data)
+                return c
     raise HTTPException(404, "Collection not found")
 
 
@@ -686,12 +694,13 @@ async def remove_from_collection(collection_id: str, body: dict):
     if not content_ids:
         raise HTTPException(400, "content_ids required")
     to_remove = set(content_ids)
-    data = _load_collections()
-    for c in data["collections"]:
-        if c["id"] == collection_id:
-            c["content_ids"] = [cid for cid in c["content_ids"] if cid not in to_remove]
-            _save_collections(data)
-            return c
+    async with _collections_lock:
+        data = _load_collections()
+        for c in data["collections"]:
+            if c["id"] == collection_id:
+                c["content_ids"] = [cid for cid in c["content_ids"] if cid not in to_remove]
+                _save_collections(data)
+                return c
     raise HTTPException(404, "Collection not found")
 
 
@@ -714,16 +723,17 @@ async def get_artwork_meta():
 
 @app.put("/api/artwork-meta/{content_id}")
 async def update_artwork_meta(content_id: str, body: dict):
-    data = _load_artwork_meta()
-    if content_id not in data["artwork"]:
-        data["artwork"][content_id] = {}
-    for key, value in body.items():
-        if key == "title":
-            value = value.strip() if isinstance(value, str) else value
-            if not value:
-                continue
-        data["artwork"][content_id][key] = value
-    _save_artwork_meta(data)
+    async with _meta_lock:
+        data = _load_artwork_meta()
+        if content_id not in data["artwork"]:
+            data["artwork"][content_id] = {}
+        for key, value in body.items():
+            if key == "title":
+                value = value.strip() if isinstance(value, str) else value
+                if not value:
+                    continue
+            data["artwork"][content_id][key] = value
+        _save_artwork_meta(data)
     return {"ok": True, "content_id": content_id, "meta": data["artwork"][content_id]}
 
 
@@ -1042,24 +1052,26 @@ async def _analyze_artwork(content_id: str) -> dict:
         "vision_identified": vision_used,
     }
 
-    meta = _load_artwork_meta()
-    if content_id not in meta["artwork"]:
-        meta["artwork"][content_id] = {}
-    meta["artwork"][content_id]["ai_meta"] = ai_meta
-    meta["artwork"][content_id].pop("ai_failed", None)
-    meta["artwork"][content_id].pop("ai_error", None)
+    async with _meta_lock:
+        meta = _load_artwork_meta()
+        if content_id not in meta["artwork"]:
+            meta["artwork"][content_id] = {}
+        meta["artwork"][content_id]["ai_meta"] = ai_meta
+        meta["artwork"][content_id].pop("ai_failed", None)
+        meta["artwork"][content_id].pop("ai_error", None)
 
-    current_title = meta["artwork"][content_id].get("title", "")
-    if ai_title not in ("Untitled", "Unknown", ""):
-        display = ai_title
-        if artist and artist != "Unknown":
-            display = f"{ai_title} - {artist}"
-        meta["artwork"][content_id]["title"] = display
-    elif not current_title:
-        meta["artwork"][content_id]["title"] = ai_title
-    _save_artwork_meta(meta)
+        current_title = meta["artwork"][content_id].get("title", "")
+        if ai_title not in ("Untitled", "Unknown", ""):
+            display = ai_title
+            if artist and artist != "Unknown":
+                display = f"{ai_title} - {artist}"
+            meta["artwork"][content_id]["title"] = display
+        elif not current_title:
+            meta["artwork"][content_id]["title"] = ai_title
+        _save_artwork_meta(meta)
+        saved_title = meta["artwork"][content_id].get("title")
 
-    return {"ai_meta": ai_meta, "title": meta["artwork"][content_id].get("title")}
+    return {"ai_meta": ai_meta, "title": saved_title}
 
 
 async def _call_claude_vision(
@@ -1296,11 +1308,12 @@ async def _analyze_artwork_background(content_id: str):
         log.info("Auto-analyzed %s", content_id)
     except Exception as e:
         log.warning("Auto-analyze failed for %s: %s", content_id, e)
-        meta = _load_artwork_meta()
-        if content_id in meta.get("artwork", {}):
-            meta["artwork"][content_id]["ai_failed"] = True
-            meta["artwork"][content_id]["ai_error"] = str(e)[:200]
-            _save_artwork_meta(meta)
+        async with _meta_lock:
+            meta = _load_artwork_meta()
+            if content_id in meta.get("artwork", {}):
+                meta["artwork"][content_id]["ai_failed"] = True
+                meta["artwork"][content_id]["ai_error"] = str(e)[:200]
+                _save_artwork_meta(meta)
 
 
 # --- Google Drive sync ---
@@ -1494,18 +1507,19 @@ async def run_drive_sync(sync_id: str):
                 (ORIGINALS_DIR / f"{content_id}.jpg").write_bytes(buf.getvalue())
 
                 original_name = Path(df["name"]).stem
-                meta = _load_artwork_meta()
-                meta["artwork"][content_id] = {
-                    "title": original_name,
-                    "original_filename": df["name"],
-                    "width": w,
-                    "height": h,
-                    "uploaded_at": datetime.now(timezone.utc).isoformat(),
-                    "source": "google_drive",
-                    "drive_file_id": file_id,
-                    "drive_sync_id": sync_id,
-                }
-                _save_artwork_meta(meta)
+                async with _meta_lock:
+                    meta = _load_artwork_meta()
+                    meta["artwork"][content_id] = {
+                        "title": original_name,
+                        "original_filename": df["name"],
+                        "width": w,
+                        "height": h,
+                        "uploaded_at": datetime.now(timezone.utc).isoformat(),
+                        "source": "google_drive",
+                        "drive_file_id": file_id,
+                        "drive_sync_id": sync_id,
+                    }
+                    _save_artwork_meta(meta)
 
                 file_map[file_id] = {
                     "content_id": content_id,
@@ -1515,11 +1529,12 @@ async def run_drive_sync(sync_id: str):
                 }
 
                 if sync["target"] != "all":
-                    coll_data = _load_collections()
-                    for c in coll_data["collections"]:
-                        if c["id"] == sync["target"] and content_id not in c["content_ids"]:
-                            c["content_ids"].append(content_id)
-                    _save_collections(coll_data)
+                    async with _collections_lock:
+                        coll_data = _load_collections()
+                        for c in coll_data["collections"]:
+                            if c["id"] == sync["target"] and content_id not in c["content_ids"]:
+                                c["content_ids"].append(content_id)
+                        _save_collections(coll_data)
 
                 ai_config = _load_ai_config()
                 _prov = ai_config.get("provider", "claude")
