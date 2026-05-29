@@ -86,11 +86,11 @@ Artwork is analyzed on upload (if auto-analyze is enabled), or manually via the 
 | OpenAI | GPT-4.1 Nano | $0.10 / $0.40 | ~0.005c |
 | OpenAI | GPT-4o | $2.50 / $10 | ~0.13c |
 
-Rough monthly example with Sonnet 4: upload 20 images (~4c), daily Atmosphere for a month (~6-18c), batch-analyze 100 images (~20c). The weather API (Open-Meteo) is free with no key required.
+Rough monthly example with Sonnet 4: upload 20 images (~4c), daily Atmosphere for a month (~6-18c), batch-analyze 100 images (~20c). The weather APIs (NWS and Open-Meteo) are free with no key required.
 
 ## Atmosphere
 
-Click the cloud icon in the header. Docent reads your local weather via browser geolocation and Open-Meteo, matches it against your gallery's mood metadata, and suggests a piece with a short curator's note. Click "Try Again" for a different recommendation.
+Click the cloud icon in the header. Docent reads your local weather via browser geolocation and the National Weather Service API (with Open-Meteo as fallback), matches it against your gallery's mood metadata, and suggests a piece with a short curator's note. Click "Try Again" for a different recommendation.
 
 ## Keyboard Shortcuts
 
