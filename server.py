@@ -48,6 +48,7 @@ _current_id_cache: str | None = None
 _tv_lock = asyncio.Lock()
 _meta_lock = asyncio.Lock()
 _collections_lock = asyncio.Lock()
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
 _nws_station_cache: dict[str, str] = {}
 
 
@@ -366,7 +367,14 @@ async def upload_art(
     filename: str = Form(""),
     analyze: bool = Query(False),
 ):
-    data = await file.read()
+    chunks = []
+    total = 0
+    async for chunk in file:
+        total += len(chunk)
+        if total > MAX_UPLOAD_BYTES:
+            raise HTTPException(413, f"File exceeds {MAX_UPLOAD_BYTES // (1024 * 1024)}MB limit")
+        chunks.append(chunk)
+    data = b"".join(chunks)
     ext = Path(file.filename or "image.jpg").suffix.lstrip(".").lower()
     if ext == "jpeg":
         ext = "jpg"

@@ -3110,6 +3110,12 @@
 
     function handleFiles(files) {
       if (!files.length) return;
+      const MAX_MB = 50;
+      const oversized = [...files].filter(f => f.size > MAX_MB * 1024 * 1024);
+      if (oversized.length) {
+        showToast(`${oversized.map(f => f.name).join(', ')} exceed${oversized.length === 1 ? 's' : ''} the ${MAX_MB}MB limit`, 'error');
+        return;
+      }
       pendingFiles = [...files];
       pendingAnalysis = new Array(pendingFiles.length).fill(null);
       renderPendingFiles();
