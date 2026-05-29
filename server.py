@@ -86,6 +86,19 @@ def _get_cached_thumbnail(content_id: str) -> bytes | None:
     return None
 
 
+_CONTENT_ID_RE = re.compile(r"^[A-Za-z0-9_\-]{1,128}$")
+
+
+def _validate_content_id(cid: str) -> str:
+    if not cid or not _CONTENT_ID_RE.match(cid):
+        raise HTTPException(400, "Invalid content_id format")
+    return cid
+
+
+def _validate_content_ids(cids: list) -> list[str]:
+    return [_validate_content_id(cid) for cid in cids]
+
+
 def _cached_content_ids() -> set[str]:
     return {p.stem for p in THUMB_DIR.glob("*.jpg")}
 
@@ -269,6 +282,7 @@ async def refresh_art():
 
 @app.get("/api/thumbnail/{content_id}")
 async def get_thumbnail(content_id: str):
+    _validate_content_id(content_id)
     cached = _get_cached_thumbnail(content_id)
     if cached:
         return Response(content=cached, media_type="image/jpeg")
@@ -290,6 +304,7 @@ async def get_thumbnails_batch(body: dict):
     content_ids = body.get("content_ids", [])
     if not content_ids:
         return {"thumbnails": {}}
+    _validate_content_ids(content_ids)
 
     encoded = {}
     missing = []
@@ -330,6 +345,7 @@ async def select_art(body: dict):
     content_id = body.get("content_id")
     if not content_id:
         raise HTTPException(400, "content_id required")
+    _validate_content_id(content_id)
     tv = get_tv()
     art = art_connection(tv)
     try:
@@ -438,6 +454,7 @@ async def delete_art(body: dict):
     content_ids = body.get("content_ids", [])
     if not content_ids:
         raise HTTPException(400, "content_ids required")
+    _validate_content_ids(content_ids)
     tv = get_tv()
     art = art_connection(tv)
     try:
@@ -476,6 +493,7 @@ async def change_matte(body: dict):
     matte_id = body.get("matte_id", "none")
     if not content_id:
         raise HTTPException(400, "content_id required")
+    _validate_content_id(content_id)
     try:
         tv = get_tv()
     except Exception:
@@ -502,6 +520,7 @@ async def toggle_favourite(body: dict):
     status = body.get("status", "on")
     if not content_id:
         raise HTTPException(400, "content_id required")
+    _validate_content_id(content_id)
     try:
         tv = get_tv()
     except Exception:
@@ -554,6 +573,7 @@ async def set_filter(body: dict):
     filter_id = body.get("filter_id")
     if not content_id or not filter_id:
         raise HTTPException(400, "content_id and filter_id required")
+    _validate_content_id(content_id)
     try:
         tv = get_tv()
     except Exception:
@@ -675,6 +695,7 @@ async def add_to_collection(collection_id: str, body: dict):
     content_ids = body.get("content_ids", [])
     if not content_ids:
         raise HTTPException(400, "content_ids required")
+    _validate_content_ids(content_ids)
     async with _collections_lock:
         data = _load_collections()
         for c in data["collections"]:
@@ -693,6 +714,7 @@ async def remove_from_collection(collection_id: str, body: dict):
     content_ids = body.get("content_ids", [])
     if not content_ids:
         raise HTTPException(400, "content_ids required")
+    _validate_content_ids(content_ids)
     to_remove = set(content_ids)
     async with _collections_lock:
         data = _load_collections()
@@ -723,6 +745,7 @@ async def get_artwork_meta():
 
 @app.put("/api/artwork-meta/{content_id}")
 async def update_artwork_meta(content_id: str, body: dict):
+    _validate_content_id(content_id)
     async with _meta_lock:
         data = _load_artwork_meta()
         if content_id not in data["artwork"]:
@@ -1229,6 +1252,7 @@ def _extract_identification(web: dict) -> tuple[str, str, float]:
 
 @app.post("/api/ai/analyze/{content_id}")
 async def analyze_artwork(content_id: str):
+    _validate_content_id(content_id)
     result = await _analyze_artwork(content_id)
     return {"ok": True, "content_id": content_id, "ai_meta": result["ai_meta"], "title": result.get("title")}
 
@@ -1236,6 +1260,8 @@ async def analyze_artwork(content_id: str):
 @app.post("/api/ai/analyze-batch")
 async def analyze_batch(body: dict):
     content_ids = body.get("content_ids", [])
+    if content_ids:
+        _validate_content_ids(content_ids)
     force = body.get("force", False)
     meta = _load_artwork_meta()
 
