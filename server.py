@@ -87,6 +87,38 @@ def _cached_content_ids() -> set[str]:
     return {p.stem for p in THUMB_DIR.glob("*.jpg")}
 
 
+def _fetch_thumbnails_sync(content_ids: list[str]) -> None:
+    """Fetch thumbnails from TV for the given IDs (best-effort, no errors raised)."""
+    if not content_ids:
+        return
+    try:
+        tv = get_tv()
+        art = art_connection(tv)
+        try:
+            BATCH = 10
+            for i in range(0, len(content_ids), BATCH):
+                batch = content_ids[i : i + BATCH]
+                try:
+                    result = art.get_thumbnail_list(batch)
+                    for name, thumb_data in result.items():
+                        for cid in batch:
+                            if name.startswith(cid):
+                                _save_thumbnail(cid, thumb_data)
+                                break
+                except Exception:
+                    for cid in batch:
+                        try:
+                            thumb_data = art.get_thumbnail(cid)
+                            if thumb_data:
+                                _save_thumbnail(cid, thumb_data)
+                        except Exception:
+                            pass
+        finally:
+            tv.close()
+    except Exception as e:
+        log.warning("Thumbnail pre-fetch failed: %s", e)
+
+
 def _refresh_art_cache_sync(force: bool = False) -> dict:
     global _art_cache, _current_id_cache
 
@@ -109,27 +141,6 @@ def _refresh_art_cache_sync(force: bool = False) -> dict:
                 cid = item["content_id"]
                 if cid not in old_ids and cid not in cached_on_disk:
                     new_ids_set.add(cid)
-
-            if new_ids_set:
-                new_ids_list = list(new_ids_set)
-                BATCH = 10
-                for i in range(0, len(new_ids_list), BATCH):
-                    batch = new_ids_list[i : i + BATCH]
-                    try:
-                        result = art.get_thumbnail_list(batch)
-                        for name, thumb_data in result.items():
-                            for cid in batch:
-                                if name.startswith(cid):
-                                    _save_thumbnail(cid, thumb_data)
-                                    break
-                    except Exception:
-                        for cid in batch:
-                            try:
-                                thumb_data = art.get_thumbnail(cid)
-                                if thumb_data:
-                                    _save_thumbnail(cid, thumb_data)
-                            except Exception:
-                                pass
 
             current_ids = {item["content_id"] for item in items}
             removed_ids = old_ids - current_ids
@@ -214,18 +225,41 @@ async def tv_info():
         raise HTTPException(502, f"Cannot reach TV: {e}")
 
 
+@app.get("/api/device-info")
+async def device_info():
+    try:
+        tv = get_tv()
+        art = art_connection(tv)
+        try:
+            info = art.get_device_info()
+            return {"device_info": info}
+        finally:
+            tv.close()
+    except Exception as e:
+        raise HTTPException(502, f"Cannot reach TV: {e}")
+
+
 # --- Art listing (cached) ---
 
 @app.get("/api/art")
 async def list_art():
     async with _tv_lock:
-        return await asyncio.to_thread(_refresh_art_cache_sync, False)
+        result = await asyncio.to_thread(_refresh_art_cache_sync, False)
+    # Pre-fetch new thumbnails in background (outside lock)
+    new_ids = result.get("new_ids", [])
+    if new_ids:
+        asyncio.get_event_loop().run_in_executor(None, _fetch_thumbnails_sync, new_ids)
+    return result
 
 
 @app.post("/api/art/refresh")
 async def refresh_art():
     async with _tv_lock:
-        return await asyncio.to_thread(_refresh_art_cache_sync, True)
+        result = await asyncio.to_thread(_refresh_art_cache_sync, True)
+    new_ids = result.get("new_ids", [])
+    if new_ids:
+        asyncio.get_event_loop().run_in_executor(None, _fetch_thumbnails_sync, new_ids)
+    return result
 
 
 # --- Thumbnails (disk-cached) ---
@@ -264,21 +298,26 @@ async def get_thumbnails_batch(body: dict):
             missing.append(cid)
 
     if missing:
-        async with _tv_lock:
-            tv = get_tv()
-            art = art_connection(tv)
+        acquired = _tv_lock.locked()
+        if not acquired:
             try:
-                result = art.get_thumbnail_list(missing)
-                for name, data in result.items():
-                    for cid in missing:
-                        if name.startswith(cid):
-                            _save_thumbnail(cid, data)
-                            encoded[cid] = base64.b64encode(bytes(data)).decode()
-                            break
-            finally:
-                tv.close()
+                async with _tv_lock:
+                    tv = get_tv()
+                    art = art_connection(tv)
+                    try:
+                        result = art.get_thumbnail_list(missing)
+                        for name, data in result.items():
+                            for cid in missing:
+                                if name.startswith(cid):
+                                    _save_thumbnail(cid, data)
+                                    encoded[cid] = base64.b64encode(bytes(data)).decode()
+                                    break
+                    finally:
+                        tv.close()
+            except Exception as e:
+                log.warning("Batch thumbnail fetch failed: %s", e)
 
-    return {"thumbnails": encoded}
+    return {"thumbnails": encoded, "missing": [c for c in missing if c not in encoded]}
 
 
 # --- Select / display ---

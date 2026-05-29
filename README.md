@@ -35,7 +35,7 @@ cp .env.example .env
 # (find it at: TV Settings > General > Network > Network Status)
 
 # Install and run
-uv run docent
+uv run python3 server.py
 ```
 
 Open **http://localhost:8000** in your browser.
