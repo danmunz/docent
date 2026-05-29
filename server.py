@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import re
+import tempfile
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -592,8 +593,27 @@ def _load_collections() -> dict:
     return {"collections": []}
 
 
+def _atomic_write_json(path: Path, data: dict) -> None:
+    """Write JSON atomically: write to temp file, then rename into place."""
+    content = json.dumps(data, indent=2)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        os.write(fd, content.encode())
+        os.close(fd)
+        fd = -1
+        os.replace(tmp, path)
+    except BaseException:
+        if fd >= 0:
+            os.close(fd)
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def _save_collections(data: dict) -> None:
-    COLLECTIONS_FILE.write_text(json.dumps(data, indent=2))
+    _atomic_write_json(COLLECTIONS_FILE, data)
 
 
 @app.get("/api/collections")
@@ -684,7 +704,7 @@ def _load_artwork_meta() -> dict:
 
 
 def _save_artwork_meta(data: dict) -> None:
-    ARTWORK_META_FILE.write_text(json.dumps(data, indent=2))
+    _atomic_write_json(ARTWORK_META_FILE, data)
 
 
 @app.get("/api/artwork-meta")
@@ -724,7 +744,7 @@ def _load_ai_config() -> dict:
 
 
 def _save_ai_config(data: dict) -> None:
-    AI_CONFIG_FILE.write_text(json.dumps(data, indent=2))
+    _atomic_write_json(AI_CONFIG_FILE, data)
 
 
 @app.get("/api/ai/config")
@@ -797,7 +817,7 @@ def _load_api_usage() -> dict:
 
 
 def _save_api_usage(data: dict) -> None:
-    API_USAGE_FILE.write_text(json.dumps(data, indent=2))
+    _atomic_write_json(API_USAGE_FILE, data)
 
 
 def _record_api_usage(model: str, input_tokens: int, output_tokens: int) -> None:
@@ -1292,7 +1312,7 @@ def _load_drive_sync() -> dict:
 
 
 def _save_drive_sync(data: dict) -> None:
-    DRIVE_SYNC_FILE.write_text(json.dumps(data, indent=2))
+    _atomic_write_json(DRIVE_SYNC_FILE, data)
 
 
 def _extract_folder_id(url: str) -> str | None:
