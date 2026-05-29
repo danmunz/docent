@@ -1764,7 +1764,7 @@
       <span class="edit-icon" onclick="startRename()">&#9998;</span>
     </div>
     <div class="detail-title-edit" id="detailTitleEdit">
-      <input type="text" id="detailTitleInput" onkeydown="onRenameKeydown(event)">
+      <input type="text" id="detailTitleInput" maxlength="200" onkeydown="onRenameKeydown(event)">
       <button class="primary" onclick="saveRename()" style="padding:6px 10px" title="Save new title">Save</button>
       <button onclick="cancelRename()" style="padding:6px 10px" title="Cancel renaming">Cancel</button>
     </div>
@@ -2790,6 +2790,7 @@
       if (!detailItem) return;
       const newTitle = document.getElementById('detailTitleInput').value.trim();
       if (!newTitle) { toast('Title cannot be empty', 'error'); return; }
+      if (newTitle.length > 200) { toast('Title must be 200 characters or fewer', 'error'); return; }
       try {
         await api(`/artwork-meta/${detailItem.content_id}`, {
           method: 'PUT',
@@ -3035,6 +3036,7 @@
     async function createCollection() {
       const name = prompt('Collection name:');
       if (!name?.trim()) return;
+      if (name.trim().length > 200) { toast('Name must be 200 characters or fewer', 'error'); return; }
       try {
         await api('/collections', { method: 'POST', body: { name: name.trim() } });
         await loadCollections();
