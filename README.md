@@ -9,20 +9,35 @@ Docent turns your Frame TV into a curated gallery — browse, upload, organize, 
 
 ## Features
 
-- Gallery grid with lazy-loaded thumbnails, lightbox preview, and keyboard navigation
+- Dense gallery grid with hover title overlays, lazy-loaded thumbnails, lightbox preview, and keyboard navigation
+- Automatic year grouping with adaptive bucketing and a sticky group navigation bar
 - Drag-and-drop upload with 16:9 compliance checking and built-in crop editor
 - One-click display, matte selection (shadow box, modern, panoramic), and bulk operations
 - Collections for organizing artwork into named groups
+- Dynamic favicon that recolors to match the currently displayed artwork
 - AI art analysis — two-stage pipeline using Google Vision for identification and Claude or OpenAI for rich analysis (artist, title, year, medium, movement, mood)
 - Atmosphere — weather-aware recommendations that match artwork mood to local conditions, with a poetic curator's note
 - Google Drive sync — import artwork from a shared folder
 - Art Mode toggle, brightness/color temperature controls, and slideshow configuration
 - API usage tracking with per-model token counts and cost estimates
 - Museum gallery design with light palette, serif typography, and curated motion
+- One-click `Docent.command` launcher with guided setup for non-technical users
 
 ## Quick Start
 
-**Prerequisites:** Python 3.10+, [uv](https://docs.astral.sh/uv/), and a Samsung Frame TV (2016+) on your local network.
+**Prerequisites:** A Samsung Frame TV (2016+) on your local network. Python 3.10+ and [uv](https://docs.astral.sh/uv/) are installed automatically if needed.
+
+### Option A: Double-click (recommended for most users)
+
+Double-click **`Docent.command`** in Finder. On first run, a guided setup wizard walks you through:
+
+1. **TV connection** — enter your Frame TV's IP address (found at TV Settings → General → Network → Network Status)
+2. **AI art analysis** — optionally configure Claude or OpenAI for automatic artwork identification
+3. **Reverse image search** — optionally add a Google Vision API key for web-based identification
+
+All steps are skippable — you can configure them later in Settings. The script installs `uv` if needed, creates your `.env` and `ai_config.json`, starts the server, and opens your browser.
+
+### Option B: Command line
 
 ```bash
 # Clone and enter the project
@@ -111,6 +126,7 @@ API keys for Claude, OpenAI, and Google Vision are managed through the Settings 
 
 ```
 docent/
+  Docent.command     # Double-click launcher with first-run setup wizard
   server.py          # FastAPI backend — TV control, AI pipeline, Drive sync
   index.html         # Single-page frontend (vanilla HTML/CSS/JS)
   assets/            # Logo, fonts, and sample artwork
