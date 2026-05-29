@@ -3203,9 +3203,18 @@
     }
 
     function closeCropModal() {
+      const canvas = document.getElementById('cropCanvas');
+      canvas.onmousedown = null;
+      canvas.onmousemove = null;
+      canvas.onmouseup = null;
+      canvas.onmouseleave = null;
+      canvas.ontouchstart = null;
+      canvas.ontouchmove = null;
+      canvas.ontouchend = null;
       document.getElementById('cropModal').classList.remove('active');
       if (cropState.img) URL.revokeObjectURL(cropState.img.src);
       cropState.img = null;
+      cropState.file = null;
       if (cropResolve) { cropResolve('cancel'); cropResolve = null; }
     }
 
