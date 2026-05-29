@@ -2120,6 +2120,8 @@
       return res;
     }
 
+    function esc(s) { const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
+
     const TOAST_ICONS = { success: '\u2713 ', error: '\u2717 ', info: '\u2139 ' };
     function toast(msg, type = 'info', duration = 3000) {
       const el = document.getElementById('toast');
@@ -2741,8 +2743,8 @@
       const meta = artworkMeta[id];
       const driveBadge = meta?.source === 'google_drive' ? '<div class="drive-badge">Synced from Google Drive</div>' : '';
       document.getElementById('detailInfo').innerHTML = `
-        <div>ID: ${id}</div>
-        <div>Category: ${detailItem.category_id || 'Unknown'}</div>
+        <div>ID: ${esc(id)}</div>
+        <div>Category: ${esc(detailItem.category_id || 'Unknown')}</div>
         ${driveBadge}
       `;
 
@@ -2814,7 +2816,7 @@
         return;
       }
       container.innerHTML = memberOf.map(c =>
-        `<span class="collection-badge">${c.name}<span class="remove-badge" onclick="removeFromCollectionDetail('${c.id}', '${contentId}')">&times;</span></span>`
+        `<span class="collection-badge">${esc(c.name)}<span class="remove-badge" onclick="removeFromCollectionDetail('${esc(c.id)}', '${esc(contentId)}')">&times;</span></span>`
       ).join('');
     }
 
@@ -3024,7 +3026,7 @@
       const sel = document.getElementById('collectionFilter');
       const prev = sel.value;
       sel.innerHTML = '<option value="">All Artwork</option>' +
-        collections.map(c => `<option value="${c.id}">${c.name} (${c.content_ids.length})</option>`).join('');
+        collections.map(c => `<option value="${esc(c.id)}">${esc(c.name)} (${c.content_ids.length})</option>`).join('');
       if (prev && collections.find(c => c.id === prev)) sel.value = prev;
     }
 
@@ -3059,7 +3061,7 @@
         menu.innerHTML = '<div class="collection-dropdown-item empty">No collections yet</div>';
       } else {
         menu.innerHTML = collections.map(c =>
-          `<div class="collection-dropdown-item" onclick="addSelectedToCollection('${c.id}')">${c.name}</div>`
+          `<div class="collection-dropdown-item" onclick="addSelectedToCollection('${esc(c.id)}')">${esc(c.name)}</div>`
         ).join('');
       }
       menu.classList.add('open');
@@ -3791,7 +3793,7 @@
       }
       const targetSel = document.getElementById('syncTarget');
       targetSel.innerHTML = '<option value="all">All Artwork</option>' +
-        collections.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+        collections.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
       document.getElementById('syncProgress').textContent = '';
       document.getElementById('syncModal').classList.add('active');
     }
