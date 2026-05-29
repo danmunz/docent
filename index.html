@@ -2460,7 +2460,6 @@
         if (data.stale) toast('Showing cached data — TV unreachable', 'info');
         updateArtworkCount();
         renderGrid();
-        loadThumbnails();
       } catch (e) {
         grid.innerHTML = `<div class="empty-state"><h3>Could not load artwork</h3><p>${e.message}</p></div>`;
       }
@@ -2476,7 +2475,6 @@
         const removedCount = data.removed_ids?.length || 0;
         updateArtworkCount();
         renderGrid();
-        if (newCount > 0) loadThumbnails();
         if (newCount || removedCount) {
           toast(`${newCount} new, ${removedCount} removed`, 'success');
         } else {
@@ -2569,6 +2567,7 @@
         grid.innerHTML = items.map(item => renderCardHtml(item)).join('');
         renderGroupNav(null);
       }
+      setupThumbObserver();
     }
 
     function renderGroupNav(grouped) {
