@@ -2105,19 +2105,29 @@
 
     async function api(path, opts = {}) {
       const url = '/api' + path;
+      const timeout = opts.timeout ?? 30000;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeout);
       const fetchOpts = {
         headers: opts.body instanceof FormData ? {} : { 'Content-Type': 'application/json' },
         ...opts,
         body: opts.body instanceof FormData ? opts.body : opts.body ? JSON.stringify(opts.body) : undefined,
+        signal: opts.signal || controller.signal,
       };
-      if (opts.signal) fetchOpts.signal = opts.signal;
-      const res = await fetch(url, fetchOpts);
-      if (!res.ok) {
-        const err = await res.text();
-        throw new Error(err);
+      try {
+        const res = await fetch(url, fetchOpts);
+        clearTimeout(timer);
+        if (!res.ok) {
+          const err = await res.text();
+          throw new Error(err);
+        }
+        if (res.headers.get('content-type')?.includes('json')) return res.json();
+        return res;
+      } catch (err) {
+        clearTimeout(timer);
+        if (err.name === 'AbortError') throw new Error('Request timed out — check your TV connection');
+        throw err;
       }
-      if (res.headers.get('content-type')?.includes('json')) return res.json();
-      return res;
     }
 
     function esc(s) { const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
@@ -3681,7 +3691,7 @@
       const progress = document.getElementById('batchProgress');
       progress.textContent = 'Starting batch analysis...';
       try {
-        const result = await api('/ai/analyze-batch', { method: 'POST', body: {} });
+        const result = await api('/ai/analyze-batch', { method: 'POST', body: {}, timeout: 120000 });
         progress.textContent = `Done: ${result.analyzed} analyzed, ${result.skipped} skipped, ${result.failed} failed`;
         await loadArtworkMeta();
         if (detailItem) renderAiMeta(detailItem.content_id);
@@ -3696,7 +3706,7 @@
       const progress = document.getElementById('batchProgress');
       progress.textContent = 'Re-analyzing all artwork...';
       try {
-        const result = await api('/ai/analyze-batch', { method: 'POST', body: { force: true } });
+        const result = await api('/ai/analyze-batch', { method: 'POST', body: { force: true }, timeout: 120000 });
         progress.textContent = `Done: ${result.analyzed} re-analyzed, ${result.failed} failed`;
         await loadArtworkMeta();
         renderGrid();
@@ -3764,7 +3774,7 @@
       const btn = section.querySelector('.ai-analyze-btn');
       if (btn) { btn.disabled = true; btn.textContent = 'Analyzing...'; }
       try {
-        const result = await api(`/ai/analyze/${detailItem.content_id}`, { method: 'POST' });
+        const result = await api(`/ai/analyze/${detailItem.content_id}`, { method: 'POST', timeout: 120000 });
         artworkMeta[detailItem.content_id] = artworkMeta[detailItem.content_id] || {};
         artworkMeta[detailItem.content_id].ai_meta = result.ai_meta;
         if (result.title) {
