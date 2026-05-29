@@ -100,6 +100,21 @@ def _validate_content_ids(cids: list) -> list[str]:
     return [_validate_content_id(cid) for cid in cids]
 
 
+_CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f]")
+MAX_NAME_LENGTH = 200
+
+
+def _validate_name(name: str, field: str = "name") -> str:
+    name = name.strip()
+    if not name:
+        raise HTTPException(400, f"{field} cannot be empty")
+    if len(name) > MAX_NAME_LENGTH:
+        raise HTTPException(400, f"{field} must be {MAX_NAME_LENGTH} characters or fewer")
+    if _CONTROL_CHAR_RE.search(name):
+        raise HTTPException(400, f"{field} contains invalid characters")
+    return name
+
+
 def _cached_content_ids() -> set[str]:
     return {p.stem for p in THUMB_DIR.glob("*.jpg")}
 
@@ -655,9 +670,7 @@ async def list_collections():
 
 @app.post("/api/collections")
 async def create_collection(body: dict):
-    name = body.get("name", "").strip()
-    if not name:
-        raise HTTPException(400, "name required")
+    name = _validate_name(body.get("name", ""))
     async with _collections_lock:
         data = _load_collections()
         collection = {
@@ -673,9 +686,7 @@ async def create_collection(body: dict):
 
 @app.put("/api/collections/{collection_id}")
 async def rename_collection(collection_id: str, body: dict):
-    name = body.get("name", "").strip()
-    if not name:
-        raise HTTPException(400, "name required")
+    name = _validate_name(body.get("name", ""))
     async with _collections_lock:
         data = _load_collections()
         for c in data["collections"]:
@@ -760,9 +771,11 @@ async def update_artwork_meta(content_id: str, body: dict):
             data["artwork"][content_id] = {}
         for key, value in body.items():
             if key == "title":
-                value = value.strip() if isinstance(value, str) else value
-                if not value:
-                    continue
+                if isinstance(value, str):
+                    value = value.strip()
+                    if not value:
+                        continue
+                    value = _validate_name(value, "title")
             data["artwork"][content_id][key] = value
         _save_artwork_meta(data)
     return {"ok": True, "content_id": content_id, "meta": data["artwork"][content_id]}
