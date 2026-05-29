@@ -1195,7 +1195,8 @@ async def _call_openai_vision(
 async def _call_google_vision(api_key: str, image_b64: str) -> dict | None:
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
-            f"https://vision.googleapis.com/v1/images:annotate?key={api_key}",
+            "https://vision.googleapis.com/v1/images:annotate",
+            headers={"x-goog-api-key": api_key},
             json={
                 "requests": [{
                     "image": {"content": image_b64},
