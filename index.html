@@ -1954,6 +1954,12 @@
         <label>API Usage <span style="font-weight:normal;color:var(--text2)" id="usageMonth"></span></label>
         <div id="usageDisplay" style="font-size:13px;color:var(--text2);line-height:1.8"></div>
       </div>
+
+      <div class="settings-section" id="storageSection" style="display:none">
+        <div class="settings-section-title">TV Storage</div>
+        <div id="storageDisplay" style="font-size:13px;color:var(--text2);line-height:1.8"></div>
+      </div>
+
       <div class="settings-actions">
         <button class="primary" onclick="saveAiSettings()" title="Save AI configuration">Save</button>
         <button onclick="analyzeAllUnanalyzed()" title="Run AI analysis on all unanalyzed artwork">Analyze Unanalyzed</button>
@@ -2253,7 +2259,10 @@
 
       const sorted = [...items].sort((a, b) => {
         const va = getSortVal(a), vb = getSortVal(b);
-        return va < vb ? -1 : va > vb ? 1 : 0;
+        if (va === SENTINEL && vb !== SENTINEL) return 1;
+        if (vb === SENTINEL && va !== SENTINEL) return -1;
+        const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+        return currentSort === 'date_added' ? -cmp : cmp;
       });
 
       const result = [];
@@ -2300,14 +2309,22 @@
 
       const grid = document.getElementById('artGrid');
 
-      // Compact header on scroll + position group nav
+      // Compact header on scroll + position group nav (hysteresis prevents oscillation)
       let _scrollTicking = false;
+      let _headerCompact = false;
       const headerEl = document.querySelector('header');
       const groupNavEl = document.getElementById('groupNav');
       window.addEventListener('scroll', () => {
         if (!_scrollTicking) {
           requestAnimationFrame(() => {
-            headerEl.classList.toggle('compact', window.scrollY > 80);
+            const y = window.scrollY;
+            if (!_headerCompact && y > 120) {
+              headerEl.classList.add('compact');
+              _headerCompact = true;
+            } else if (_headerCompact && y < 40) {
+              headerEl.classList.remove('compact');
+              _headerCompact = false;
+            }
             groupNavEl.style.top = headerEl.offsetHeight + 'px';
             _scrollTicking = false;
           });
@@ -2351,18 +2368,27 @@
       return category.startsWith('MY-') ? 'My Photo' : (category || 'Unknown');
     }
 
+    function wikiClean(term) {
+      // Strip parentheticals: "(copy)", "(detail)", "(fragment)", etc.
+      let clean = term.replace(/\s*\([^)]*\)\s*/g, ' ').trim();
+      // Strip attribution prefixes: "After", "Attributed to", "Circle of", "Follower of", "School of", "Workshop of", "Studio of", "Manner of"
+      clean = clean.replace(/^(After|Attributed to|Circle of|Follower of|School of|Workshop of|Studio of|Manner of)\s+/i, '');
+      return clean;
+    }
+
     function wikiAnchor(term, type = 'direct') {
       if (!term || /^(Unknown|N\/A|My Photo)$/i.test(term)) return term || 'Unknown';
       const safe = term.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+      const cleaned = wikiClean(term);
       let url;
       if (type === 'search') {
-        url = 'https://en.wikipedia.org/w/index.php?search=' + encodeURIComponent(term);
+        url = 'https://en.wikipedia.org/w/index.php?search=' + encodeURIComponent(cleaned);
       } else if (type === 'year') {
         const m = term.match(/^(\d{4})/);
         if (!m) return safe;
         url = 'https://en.wikipedia.org/wiki/' + m[1] + '_in_art';
       } else {
-        url = 'https://en.wikipedia.org/wiki/' + encodeURIComponent(term.replace(/ /g, '_'));
+        url = 'https://en.wikipedia.org/wiki/' + encodeURIComponent(cleaned.replace(/ /g, '_'));
       }
       return `<a class="wiki-link" href="${url}" target="_blank" rel="noopener" title="Look up ${safe} on Wikipedia">${safe}</a>`;
     }
@@ -3205,17 +3231,23 @@
       return canvas.width / wrap.clientWidth;
     }
 
+    function getCropBaseScale() {
+      const canvas = document.getElementById('cropCanvas');
+      const img = cropState.img;
+      if (!img) return 1;
+      return Math.max(canvas.width / img.naturalWidth, canvas.height / img.naturalHeight);
+    }
+
     function clampOffsets() {
       const img = cropState.img;
       if (!img) return;
       const canvas = document.getElementById('cropCanvas');
       const viewW = canvas.width, viewH = canvas.height;
-      const scaledW = img.naturalWidth * cropState.zoom;
-      const scaledH = img.naturalHeight * cropState.zoom;
-      const fitScale = Math.max(viewW / scaledW, viewH / scaledH);
-      const drawW = scaledW * fitScale, drawH = scaledH * fitScale;
-      const maxX = Math.max(0, (drawW - viewW) / 2 / fitScale / cropState.zoom);
-      const maxY = Math.max(0, (drawH - viewH) / 2 / fitScale / cropState.zoom);
+      const bs = getCropBaseScale();
+      const drawW = img.naturalWidth * bs * cropState.zoom;
+      const drawH = img.naturalHeight * bs * cropState.zoom;
+      const maxX = Math.max(0, (drawW - viewW) / 2 / bs / cropState.zoom);
+      const maxY = Math.max(0, (drawH - viewH) / 2 / bs / cropState.zoom);
       cropState.offsetX = Math.max(-maxX, Math.min(maxX, cropState.offsetX));
       cropState.offsetY = Math.max(-maxY, Math.min(maxY, cropState.offsetY));
     }
@@ -3227,17 +3259,22 @@
       if (!img) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       const viewW = canvas.width, viewH = canvas.height;
-      const scaledW = img.naturalWidth * cropState.zoom;
-      const scaledH = img.naturalHeight * cropState.zoom;
-      const fitScale = Math.max(viewW / scaledW, viewH / scaledH);
-      const drawW = scaledW * fitScale, drawH = scaledH * fitScale;
-      const dx = (viewW - drawW) / 2 + cropState.offsetX * fitScale * cropState.zoom;
-      const dy = (viewH - drawH) / 2 + cropState.offsetY * fitScale * cropState.zoom;
+      const bs = getCropBaseScale();
+      const drawW = img.naturalWidth * bs * cropState.zoom;
+      const drawH = img.naturalHeight * bs * cropState.zoom;
+      const dx = (viewW - drawW) / 2 + cropState.offsetX * bs * cropState.zoom;
+      const dy = (viewH - drawH) / 2 + cropState.offsetY * bs * cropState.zoom;
       ctx.drawImage(img, dx, dy, drawW, drawH);
     }
 
     function onCropZoom(val) {
+      const oldZoom = cropState.zoom;
       cropState.zoom = val / 100;
+      if (oldZoom > 0) {
+        const ratio = cropState.zoom / oldZoom;
+        cropState.offsetX *= ratio;
+        cropState.offsetY *= ratio;
+      }
       document.getElementById('cropZoomLabel').textContent = val + '%';
       clampOffsets();
       drawCropCanvas();
@@ -3247,13 +3284,7 @@
     function autoCrop() {
       const img = cropState.img;
       if (!img) return;
-      const imgAspect = img.naturalWidth / img.naturalHeight;
-      const targetAspect = 16 / 9;
-      if (imgAspect > targetAspect) {
-        cropState.zoom = 1;
-      } else {
-        cropState.zoom = targetAspect / imgAspect;
-      }
+      cropState.zoom = 1;
       cropState.offsetX = 0;
       cropState.offsetY = 0;
       const slider = document.getElementById('cropZoom');
@@ -3279,12 +3310,11 @@
       const outW = 3840, outH = 2160;
       const viewCanvas = document.getElementById('cropCanvas');
       const viewW = viewCanvas.width, viewH = viewCanvas.height;
-      const scaledW = img.naturalWidth * cropState.zoom;
-      const scaledH = img.naturalHeight * cropState.zoom;
-      const fitScale = Math.max(viewW / scaledW, viewH / scaledH);
-      const drawW = scaledW * fitScale, drawH = scaledH * fitScale;
-      const dx = (viewW - drawW) / 2 + cropState.offsetX * fitScale * cropState.zoom;
-      const dy = (viewH - drawH) / 2 + cropState.offsetY * fitScale * cropState.zoom;
+      const bs = getCropBaseScale();
+      const drawW = img.naturalWidth * bs * cropState.zoom;
+      const drawH = img.naturalHeight * bs * cropState.zoom;
+      const dx = (viewW - drawW) / 2 + cropState.offsetX * bs * cropState.zoom;
+      const dy = (viewH - drawH) / 2 + cropState.offsetY * bs * cropState.zoom;
       const srcX = -dx / drawW * img.naturalWidth;
       const srcY = -dy / drawH * img.naturalHeight;
       const srcW = viewW / drawW * img.naturalWidth;
@@ -3571,6 +3601,16 @@
       document.getElementById('batchProgress').textContent = '';
       const warn = document.getElementById('reanalyzeWarning');
       warn.style.display = 'none';
+      // TV storage info
+      try {
+        const devInfo = await api('/device-info');
+        const info = devInfo.device_info;
+        const flashGB = parseInt(info.tv_flash_size, 10);
+        const itemCount = artItems.length;
+        const storageEl = document.getElementById('storageDisplay');
+        storageEl.innerHTML = `${flashGB} GB internal storage &middot; ${itemCount} artwork${itemCount !== 1 ? 's' : ''} on device`;
+        document.getElementById('storageSection').style.display = '';
+      } catch { document.getElementById('storageSection').style.display = 'none'; }
       if (artItems.length > 0) {
         try {
           const est = await api(`/ai/estimate?count=${artItems.length}`);
