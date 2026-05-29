@@ -16,6 +16,7 @@ Docent turns your Frame TV into a curated gallery — browse, upload, organize, 
 - Collections for organizing artwork into named groups
 - Dynamic favicon that recolors to match the currently displayed artwork
 - AI art analysis — two-stage pipeline using Google Vision for identification and Claude or OpenAI for rich analysis (artist, title, year, medium, movement, mood)
+- Wikipedia integration — every metadata field (artist, school, medium, year, title) links to Wikipedia; group headers when sorted by artist or movement become entry points too
 - Atmosphere — weather-aware recommendations that match artwork mood to local conditions, with a poetic curator's note
 - Google Drive sync — import artwork from a shared folder
 - Art Mode toggle, brightness/color temperature controls, and slideshow configuration
@@ -90,7 +91,13 @@ Rough monthly example with Sonnet 4: upload 20 images (~4c), daily Atmosphere fo
 
 ## Atmosphere
 
-Click the cloud icon in the header. Docent reads your local weather via browser geolocation and the National Weather Service API (with Open-Meteo as fallback), matches it against your gallery's mood metadata, and suggests a piece with a short curator's note. Click "Try Again" for a different recommendation.
+Click the cloud icon in the header. Docent reads your local weather via browser geolocation and the National Weather Service API (with Open-Meteo as fallback), matches it against your gallery's mood metadata, and suggests a piece with a short curator's note. The artwork title links to Wikipedia so you can keep reading. Click "Try Again" for a different recommendation.
+
+## Learn More Links
+
+Once artwork is analyzed, every metadata field in the detail panel becomes a quiet Wikipedia link — hover to reveal the ↗ indicator, click to open in a new tab. Artist names link to biographies, art movements to their Wikipedia articles, years to "YYYY in art" pages, and titles to search results.
+
+When you sort the gallery by Artist, School, or Medium, the group headers become links too. The links are invisible until you hover — they reward curiosity without adding visual noise. No API keys required; all URLs are constructed client-side from existing AI metadata.
 
 ## Keyboard Shortcuts
 
