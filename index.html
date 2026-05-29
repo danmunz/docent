@@ -2517,7 +2517,14 @@
         </div>`;
     }
 
+    let _renderGridRAF = null;
     function renderGrid() {
+      if (_renderGridRAF) cancelAnimationFrame(_renderGridRAF);
+      _renderGridRAF = requestAnimationFrame(_renderGridNow);
+    }
+
+    function _renderGridNow() {
+      _renderGridRAF = null;
       const grid = document.getElementById('artGrid');
       const seen = new Set();
       let items = artItems.filter(a => {
