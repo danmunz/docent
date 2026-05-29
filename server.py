@@ -202,7 +202,7 @@ def _refresh_art_cache_sync(force: bool = False) -> dict:
                 "current_id": _current_id_cache,
                 "stale": True,
             }
-        raise HTTPException(502, f"Cannot reach TV: {e}")
+        raise HTTPException(502, "Cannot reach TV — is it on and connected?")
 
 
 def _invalidate_art_cache() -> None:
@@ -254,7 +254,8 @@ async def tv_info():
         finally:
             tv.close()
     except Exception as e:
-        raise HTTPException(502, f"Cannot reach TV: {e}")
+        log.warning("TV connection failed: %s", e)
+        raise HTTPException(502, "Cannot reach TV — is it on and connected?")
 
 
 @app.get("/api/device-info")
@@ -268,7 +269,8 @@ async def device_info():
         finally:
             tv.close()
     except Exception as e:
-        raise HTTPException(502, f"Cannot reach TV: {e}")
+        log.warning("TV connection failed: %s", e)
+        raise HTTPException(502, "Cannot reach TV — is it on and connected?")
 
 
 # --- Art listing (cached) ---
@@ -1143,7 +1145,8 @@ async def _call_claude_vision(
             },
         )
         if resp.status_code != 200:
-            raise HTTPException(502, f"Claude API error: {resp.status_code} — {resp.text[:200]}")
+            log.warning("Claude API error: %s — %s", resp.status_code, resp.text[:200])
+            raise HTTPException(502, "AI analysis failed — check your API key and try again")
 
         result = resp.json()
         usage = result.get("usage", {})
@@ -1181,7 +1184,8 @@ async def _call_openai_vision(
             },
         )
         if resp.status_code != 200:
-            raise HTTPException(502, f"OpenAI API error: {resp.status_code} — {resp.text[:200]}")
+            log.warning("OpenAI API error: %s — %s", resp.status_code, resp.text[:200])
+            raise HTTPException(502, "AI analysis failed — check your API key and try again")
         result = resp.json()
         usage = result.get("usage", {})
         _record_api_usage(model, usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0))
@@ -1401,7 +1405,8 @@ async def _drive_list_files(folder_id: str, api_key: str) -> list[dict]:
                 params["pageToken"] = page_token
             resp = await client.get("https://www.googleapis.com/drive/v3/files", params=params)
             if resp.status_code != 200:
-                raise HTTPException(502, f"Drive API error: {resp.status_code} — {resp.text[:200]}")
+                log.warning("Drive API error: %s — %s", resp.status_code, resp.text[:200])
+                raise HTTPException(502, "Google Drive API error — check your API key")
             data = resp.json()
             files.extend(data.get("files", []))
             page_token = data.get("nextPageToken")
@@ -1795,7 +1800,8 @@ async def atmosphere(body: dict):
                 },
             )
             if resp.status_code != 200:
-                raise HTTPException(502, f"OpenAI API error: {resp.status_code}")
+                log.warning("OpenAI API error (atmosphere): %s", resp.status_code)
+                raise HTTPException(502, "AI request failed — check your API key")
             atm_result = resp.json()
             usage = atm_result.get("usage", {})
             _record_api_usage(model, usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0))
@@ -1815,7 +1821,8 @@ async def atmosphere(body: dict):
                 },
             )
             if resp.status_code != 200:
-                raise HTTPException(502, f"Claude API error: {resp.status_code}")
+                log.warning("Claude API error (atmosphere): %s", resp.status_code)
+                raise HTTPException(502, "AI request failed — check your API key")
             atm_result = resp.json()
             usage = atm_result.get("usage", {})
             _record_api_usage(model, usage.get("input_tokens", 0), usage.get("output_tokens", 0))
