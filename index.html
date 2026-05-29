@@ -2392,7 +2392,7 @@
       } else {
         url = 'https://en.wikipedia.org/wiki/' + encodeURIComponent(cleaned.replace(/ /g, '_'));
       }
-      return `<a class="wiki-link" href="${url}" target="_blank" rel="noopener" title="Look up ${safe} on Wikipedia">${safe}</a>`;
+      return `<a class="wiki-link" href="${url}" target="_blank" rel="noopener noreferrer" title="Look up ${safe} on Wikipedia">${safe}</a>`;
     }
 
     function wikiHeaderLabel(label, sortType) {
@@ -2403,7 +2403,7 @@
         case 'medium': return wikiAnchor(label, 'search');
         case 'year': {
           const m = label.match(/^(\d{4})/);
-          if (m) return `<a class="wiki-link" href="https://en.wikipedia.org/wiki/${m[1]}s_in_art" target="_blank" rel="noopener" title="Look up ${label} on Wikipedia">${label}</a>`;
+          if (m) return `<a class="wiki-link" href="https://en.wikipedia.org/wiki/${m[1]}s_in_art" target="_blank" rel="noopener noreferrer" title="Look up ${label} on Wikipedia">${label}</a>`;
           return label;
         }
         default: return label;
@@ -3969,7 +3969,7 @@
       const atmUrl = 'https://en.wikipedia.org/w/index.php?search=' + encodeURIComponent(atmSearch);
       const atmTitle = (data.artwork_title || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
       document.getElementById('atmosphereTitle').innerHTML = atmTitle
-        ? `<a class="wiki-link" href="${atmUrl}" target="_blank" rel="noopener" title="Look up ${atmTitle} on Wikipedia">${atmTitle}</a>`
+        ? `<a class="wiki-link" href="${atmUrl}" target="_blank" rel="noopener noreferrer" title="Look up ${atmTitle} on Wikipedia">${atmTitle}</a>`
         : '';
       document.getElementById('atmosphereTitle').classList.remove('revealed');
       document.getElementById('atmosphereNote').textContent = data.curator_note;
