@@ -137,14 +137,15 @@ def _fetch_thumbnails_sync(content_ids: list[str]) -> None:
                             if name.startswith(cid):
                                 _save_thumbnail(cid, thumb_data)
                                 break
-                except Exception:
+                except Exception as e:
+                    log.debug("Batch thumbnail fetch failed, falling back to individual: %s", e)
                     for cid in batch:
                         try:
                             thumb_data = art.get_thumbnail(cid)
                             if thumb_data:
                                 _save_thumbnail(cid, thumb_data)
                         except Exception:
-                            pass
+                            log.debug("Could not fetch thumbnail for %s", cid)
         finally:
             tv.close()
     except Exception as e:
@@ -452,11 +453,12 @@ async def upload_art(
                     if thumb_data:
                         _save_thumbnail(content_id, thumb_data)
                 except Exception:
-                    pass
+                    log.debug("Could not pre-fetch thumbnail for %s", content_id)
             try:
                 ai_result = await _analyze_artwork(content_id)
             except Exception as e:
-                ai_result = {"error": str(e)}
+                log.warning("Auto-analyze failed during upload for %s: %s", content_id, e)
+                ai_result = {"error": "Analysis failed"}
         elif should_analyze:
             asyncio.create_task(_analyze_artwork_background(content_id))
 
