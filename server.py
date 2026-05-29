@@ -335,24 +335,22 @@ async def get_thumbnails_batch(body: dict):
             missing.append(cid)
 
     if missing:
-        acquired = _tv_lock.locked()
-        if not acquired:
-            try:
-                async with _tv_lock:
-                    tv = get_tv()
-                    art = art_connection(tv)
-                    try:
-                        result = art.get_thumbnail_list(missing)
-                        for name, data in result.items():
-                            for cid in missing:
-                                if name.startswith(cid):
-                                    _save_thumbnail(cid, data)
-                                    encoded[cid] = base64.b64encode(bytes(data)).decode()
-                                    break
-                    finally:
-                        tv.close()
-            except Exception as e:
-                log.warning("Batch thumbnail fetch failed: %s", e)
+        try:
+            async with _tv_lock:
+                tv = get_tv()
+                art = art_connection(tv)
+                try:
+                    result = art.get_thumbnail_list(missing)
+                    for name, data in result.items():
+                        for cid in missing:
+                            if name.startswith(cid):
+                                _save_thumbnail(cid, data)
+                                encoded[cid] = base64.b64encode(bytes(data)).decode()
+                                break
+                finally:
+                    tv.close()
+        except Exception as e:
+            log.warning("Batch thumbnail fetch failed: %s", e)
 
     return {"thumbnails": encoded, "missing": [c for c in missing if c not in encoded]}
 
