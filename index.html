@@ -2107,9 +2107,10 @@
 
     async function api(path, opts = {}) {
       const url = '/api' + path;
+      const hasExternalSignal = !!opts.signal;
       const timeout = opts.timeout ?? 30000;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeout);
+      const controller = hasExternalSignal ? null : new AbortController();
+      const timer = hasExternalSignal ? null : setTimeout(() => controller.abort(), timeout);
       const fetchOpts = {
         headers: opts.body instanceof FormData ? {} : { 'Content-Type': 'application/json' },
         ...opts,
@@ -2118,7 +2119,7 @@
       };
       try {
         const res = await fetch(url, fetchOpts);
-        clearTimeout(timer);
+        if (timer) clearTimeout(timer);
         if (!res.ok) {
           const err = await res.text();
           throw new Error(err);
@@ -2126,7 +2127,7 @@
         if (res.headers.get('content-type')?.includes('json')) return res.json();
         return res;
       } catch (err) {
-        clearTimeout(timer);
+        if (timer) clearTimeout(timer);
         if (err.name === 'AbortError') throw new Error('Request timed out — check your TV connection');
         throw err;
       }
@@ -2377,7 +2378,7 @@
       try {
         const data = await api('/artwork-meta');
         artworkMeta = data.artwork || {};
-      } catch {}
+      } catch (err) { console.debug('loadArtworkMeta failed:', err); }
     }
 
     function getArtworkTitle(item) {
@@ -2607,6 +2608,8 @@
     function setupThumbObserver() {
       if (_thumbObserver) _thumbObserver.disconnect();
       _pendingObserveIds.clear();
+      clearTimeout(_observeBatchTimer);
+      _observeBatchTimer = null;
 
       _thumbObserver = new IntersectionObserver((entries) => {
         for (const entry of entries) {
@@ -3042,7 +3045,7 @@
         const data = await api('/collections');
         collections = data.collections || [];
         renderCollectionFilter();
-      } catch {}
+      } catch (err) { console.debug('loadCollections failed:', err); }
     }
 
     function renderCollectionFilter() {
@@ -3532,7 +3535,7 @@
       try {
         const cfg = await api('/ai/config');
         shouldAnalyze = cfg.auto_analyze && cfg.claude?.api_key;
-      } catch {}
+      } catch (err) { console.debug('Auto-analyze config check failed:', err); }
 
       progressDiv.innerHTML = `
         <div class="progress-label" id="progressLabel">Preparing upload...</div>
@@ -3623,7 +3626,7 @@
         document.getElementById('openaiApiKey').placeholder = config.openai?.api_key || 'sk-proj-...';
         document.getElementById('openaiModel').value = config.openai?.model || 'gpt-4.1';
         toggleProviderFields();
-      } catch {}
+      } catch (err) { console.debug('Settings config load failed:', err); }
       try {
         const usage = await api('/ai/usage');
         const section = document.getElementById('usageSection');
@@ -3639,7 +3642,7 @@
         } else {
           section.style.display = 'none';
         }
-      } catch { document.getElementById('usageSection').style.display = 'none'; }
+      } catch (err) { console.debug('Usage load failed:', err); document.getElementById('usageSection').style.display = 'none'; }
       document.getElementById('batchProgress').textContent = '';
       const warn = document.getElementById('reanalyzeWarning');
       warn.style.display = 'none';
@@ -3652,13 +3655,13 @@
         const storageEl = document.getElementById('storageDisplay');
         storageEl.innerHTML = `${flashGB} GB internal storage &middot; ${itemCount} artwork${itemCount !== 1 ? 's' : ''} on device`;
         document.getElementById('storageSection').style.display = '';
-      } catch { document.getElementById('storageSection').style.display = 'none'; }
+      } catch (err) { console.debug('Storage info load failed:', err); document.getElementById('storageSection').style.display = 'none'; }
       if (artItems.length > 0) {
         try {
           const est = await api(`/ai/estimate?count=${artItems.length}`);
           warn.style.display = 'block';
           warn.textContent = `Re-analyzing all ${est.count} images will take ~${est.estimated_minutes} min and cost ~$${est.estimated_cost_usd.toFixed(2)} (${est.model})`;
-        } catch {}
+        } catch (err) { console.debug('AI estimate failed:', err); }
       }
       document.getElementById('settingsModal').classList.add('active');
     }
@@ -3989,7 +3992,7 @@
       const w = data.weather;
       const timeIcon = w.is_day ? '\u2600' : '\u263E';
       document.getElementById('atmosphereWeather').innerHTML =
-        `<span class="temp">${Math.round(w.temp)}${w.temp_unit}</span><span class="desc">${timeIcon} ${w.description}</span>`;
+        `<span class="temp">${Math.round(w.temp)}${esc(w.temp_unit)}</span><span class="desc">${timeIcon} ${esc(w.description)}</span>`;
 
       const img = document.getElementById('atmosphereImg');
       img.classList.remove('revealed');
@@ -3999,7 +4002,7 @@
       const atmArtist = artworkMeta[data.content_id]?.ai_meta?.artist;
       const atmSearch = atmArtist ? `${data.artwork_title} ${atmArtist}` : data.artwork_title;
       const atmUrl = 'https://en.wikipedia.org/w/index.php?search=' + encodeURIComponent(atmSearch);
-      const atmTitle = (data.artwork_title || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+      const atmTitle = (data.artwork_title || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
       document.getElementById('atmosphereTitle').innerHTML = atmTitle
         ? `<a class="wiki-link" href="${atmUrl}" target="_blank" rel="noopener noreferrer" title="Look up ${atmTitle} on Wikipedia">${atmTitle}</a>`
         : '';

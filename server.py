@@ -48,6 +48,8 @@ _current_id_cache: str | None = None
 _tv_lock = asyncio.Lock()
 _meta_lock = asyncio.Lock()
 _collections_lock = asyncio.Lock()
+_config_lock = asyncio.Lock()
+_usage_lock = asyncio.Lock()
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
 _nws_station_cache: dict[str, str] = {}
 
@@ -824,32 +826,33 @@ async def get_ai_config():
 
 @app.put("/api/ai/config")
 async def update_ai_config(body: dict):
-    config = _load_ai_config()
-    if "auto_analyze" in body:
-        config["auto_analyze"] = bool(body["auto_analyze"])
-    if "opus_fallback" in body:
-        config["opus_fallback"] = bool(body["opus_fallback"])
-    if "provider" in body:
-        config["provider"] = body["provider"]
-    if "use_google_vision" in body:
-        config["use_google_vision"] = bool(body["use_google_vision"])
-    if "claude" in body:
-        claude = body["claude"]
-        if "api_key" in claude and claude["api_key"] and not claude["api_key"].startswith("..."):
-            config.setdefault("claude", {})["api_key"] = claude["api_key"]
-        if "model" in claude:
-            config.setdefault("claude", {})["model"] = claude["model"]
-    if "openai" in body:
-        openai_conf = body["openai"]
-        if "api_key" in openai_conf and openai_conf["api_key"] and not openai_conf["api_key"].startswith("..."):
-            config.setdefault("openai", {})["api_key"] = openai_conf["api_key"]
-        if "model" in openai_conf:
-            config.setdefault("openai", {})["model"] = openai_conf["model"]
-    if "google_vision" in body:
-        gv = body["google_vision"]
-        if "api_key" in gv and gv["api_key"] and not gv["api_key"].startswith("..."):
-            config.setdefault("google_vision", {})["api_key"] = gv["api_key"]
-    _save_ai_config(config)
+    async with _config_lock:
+        config = _load_ai_config()
+        if "auto_analyze" in body:
+            config["auto_analyze"] = bool(body["auto_analyze"])
+        if "opus_fallback" in body:
+            config["opus_fallback"] = bool(body["opus_fallback"])
+        if "provider" in body:
+            config["provider"] = body["provider"]
+        if "use_google_vision" in body:
+            config["use_google_vision"] = bool(body["use_google_vision"])
+        if "claude" in body:
+            claude = body["claude"]
+            if "api_key" in claude and claude["api_key"] and not claude["api_key"].startswith("..."):
+                config.setdefault("claude", {})["api_key"] = claude["api_key"]
+            if "model" in claude:
+                config.setdefault("claude", {})["model"] = claude["model"]
+        if "openai" in body:
+            openai_conf = body["openai"]
+            if "api_key" in openai_conf and openai_conf["api_key"] and not openai_conf["api_key"].startswith("..."):
+                config.setdefault("openai", {})["api_key"] = openai_conf["api_key"]
+            if "model" in openai_conf:
+                config.setdefault("openai", {})["model"] = openai_conf["model"]
+        if "google_vision" in body:
+            gv = body["google_vision"]
+            if "api_key" in gv and gv["api_key"] and not gv["api_key"].startswith("..."):
+                config.setdefault("google_vision", {})["api_key"] = gv["api_key"]
+        _save_ai_config(config)
     return {"ok": True}
 
 
