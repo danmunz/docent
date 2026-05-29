@@ -1,0 +1,13 @@
+# gh-pages: only ship the landing page + assets
+.env
+*.json
+*.py
+*.toml
+*.egg-info/
+__pycache__/
+.venv/
+.playwright-mcp/
+tests/
+Docent.command
+README.md
+LICENSE

@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Docent — Samsung Frame TV Art Gallery Manager</title>
+<meta name="description" content="A personal art gallery manager for Samsung Frame TVs. Browse, upload, organize, and display artwork from a museum-inspired web interface.">
+<link rel="icon" type="image/x-icon" href="assets/favicon/favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon/favicon-32x32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/favicon/apple-touch-icon.png">
+<style>
+/* ─── Fonts ──────────────────────────────────────────── */
+@font-face {
+  font-family: 'Afacad';
+  src: url('assets/fonts/Afacad-VariableFont_wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Afacad';
+  src: url('assets/fonts/Afacad-Italic-VariableFont_wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* ─── Tokens ─────────────────────────────────────────── */
+:root {
+  --white: #FAFAF8;
+  --linen: #F5F3EF;
+  --parchment: #ECE8E1;
+  --stone: #C8C2B8;
+  --graphite: #6B6560;
+  --charcoal: #3A3632;
+  --soot: #1C1A17;
+  --ultramarine: #2B4FA0;
+  --ultramarine-hover: #6B8CC7;
+  --ultramarine-glow: #EEF2FA;
+  --vermillion: #A8432A;
+  --verdigris: #2D7A5E;
+  --ochre: #A88C30;
+
+  --font: 'Afacad', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --border: 2px solid var(--charcoal);
+  --shadow: 3px 3px 0 var(--charcoal);
+  --shadow-lg: 5px 5px 0 var(--charcoal);
+  --shadow-xl: 8px 8px 0 var(--charcoal);
+  --radius: 3px;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ─── Reset ──────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font);
+  background: var(--white);
+  color: var(--soot);
+  line-height: 1.65;
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+img { max-width: 100%; display: block; }
+a { color: var(--ultramarine); text-decoration: none; }
+a:hover { color: var(--ultramarine-hover); }
+
+/* ─── Layout ─────────────────────────────────────────── */
+.container {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* ─── Scroll Reveal ──────────────────────────────────── */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.7s var(--ease), transform 0.7s var(--ease);
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+/* Stagger children: feature cards, steps */
+.reveal-stagger > .reveal {
+  transition-delay: calc(var(--i, 0) * 80ms);
+}
+
+/* ─── Hero Entrance ──────────────────────────────────── */
+@keyframes heroFadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes heroSlideIn {
+  from { opacity: 0; transform: translateX(40px) rotate(-1.5deg); }
+  to   { opacity: 1; transform: translateX(0) rotate(-1deg); }
+}
+@keyframes labelAppear {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.hero-logo-img,
+.hero .logo-row,
+.hero h1,
+.hero-sub,
+.hero .cta-row {
+  opacity: 0;
+  animation: heroFadeUp 0.7s var(--ease) forwards;
+}
+.hero-logo-img   { animation-delay: 0ms; }
+.hero .logo-row  { animation-delay: 80ms; }
+.hero h1         { animation-delay: 160ms; }
+.hero-sub        { animation-delay: 240ms; }
+.hero .cta-row   { animation-delay: 320ms; }
+.frame-tv {
+  opacity: 0;
+  animation: heroSlideIn 0.8s var(--ease) 400ms forwards;
+}
+.frame-label {
+  opacity: 0;
+  animation: labelAppear 0.6s var(--ease) 900ms forwards;
+}
+
+/* ─── Hero ───────────────────────────────────────────── */
+.hero {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 24px;
+  position: relative;
+}
+.hero-inner {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 64px;
+  align-items: center;
+  max-width: 1080px;
+  width: 100%;
+}
+.hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.logo-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.logo-mark {
+  width: 52px;
+  height: 42px;
+  background: var(--soot);
+  -webkit-mask: url('assets/logo/docent-logo.png') no-repeat center / contain;
+  mask: url('assets/logo/docent-logo.png') no-repeat center / contain;
+  flex-shrink: 0;
+}
+.hero-logo-img {
+  width: 100%;
+  max-width: 340px;
+  margin-bottom: 8px;
+}
+.logo-text {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--charcoal);
+}
+.hero h1 {
+  font-size: clamp(2.8rem, 6vw, 4.2rem);
+  font-weight: 800;
+  line-height: 1.08;
+  color: var(--soot);
+  letter-spacing: -0.02em;
+}
+.hero h1 em {
+  font-style: italic;
+  color: var(--ultramarine);
+  text-decoration: underline;
+  text-decoration-color: rgba(43, 79, 160, 0.25);
+  text-underline-offset: 4px;
+  text-decoration-thickness: 3px;
+}
+.hero-sub {
+  font-size: 1.15rem;
+  font-weight: 300;
+  color: var(--graphite);
+  max-width: 440px;
+  line-height: 1.6;
+}
+.cta-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-top: 8px;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font);
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 14px 28px;
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: all 0.2s var(--ease);
+  text-decoration: none;
+}
+.btn:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translate(-1px, -2px);
+}
+.btn:active {
+  box-shadow: 1px 1px 0 var(--charcoal);
+  transform: translate(1px, 1px);
+}
+.btn-primary {
+  background: var(--ultramarine);
+  color: #fff;
+}
+.btn-primary:hover { color: #fff; background: var(--ultramarine-hover); }
+.btn-secondary {
+  background: var(--white);
+  color: var(--soot);
+}
+.btn-secondary:hover { color: var(--soot); }
+
+/* ─── Frame TV Mockup ────────────────────────────────── */
+.frame-tv {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  justify-self: center;
+  transform: rotate(-1deg);
+}
+.frame-outer {
+  border: 3px solid var(--charcoal);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-xl);
+  background: var(--charcoal);
+  padding: 6px;
+  position: relative;
+}
+.frame-matte {
+  background: var(--linen);
+  padding: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.frame-art {
+  width: 100%;
+  aspect-ratio: 16/9;
+  object-fit: cover;
+  display: block;
+  border: 1px solid var(--stone);
+  animation: ambientPulse 6s ease-in-out infinite;
+}
+@keyframes ambientPulse {
+  0%, 100% { filter: brightness(1); }
+  50%      { filter: brightness(1.06); }
+}
+.frame-stand {
+  width: 60%;
+  height: 3px;
+  background: var(--charcoal);
+  margin: 0 auto;
+  margin-top: -1px;
+  border-radius: 0 0 2px 2px;
+  position: relative;
+}
+.frame-stand::before,
+.frame-stand::after {
+  content: '';
+  position: absolute;
+  bottom: -18px;
+  width: 3px;
+  height: 18px;
+  background: var(--charcoal);
+}
+.frame-stand::before { left: 20%; }
+.frame-stand::after { right: 20%; }
+.frame-label {
+  text-align: center;
+  margin-top: 28px;
+  font-size: 0.85rem;
+  color: var(--graphite);
+  font-style: italic;
+}
+
+/* ─── Section ────────────────────────────────────────── */
+section {
+  padding: 100px 0;
+}
+.section-head {
+  text-align: center;
+  margin-bottom: 56px;
+}
+.section-head h2 {
+  font-size: clamp(1.8rem, 3.5vw, 2.4rem);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin-bottom: 12px;
+}
+.section-head p {
+  font-size: 1.1rem;
+  color: var(--graphite);
+  max-width: 560px;
+  margin: 0 auto;
+}
+.bg-linen {
+  background: var(--linen);
+  background-image: url("data:image/svg+xml,%3Csvg width='200' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+}
+
+/* ─── Feature Cards ──────────────────────────────────── */
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+.feature-card {
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  background: var(--white);
+  padding: 32px;
+  transition: all 0.3s var(--ease);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.feature-card:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translate(-2px, -2px) scale(1.01);
+}
+.feature-card.feature-star {
+  grid-column: 1 / -1;
+  border-left: 4px solid var(--ultramarine);
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 24px;
+}
+.feature-card.feature-star .feature-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.feature-icon {
+  width: 48px;
+  height: 48px;
+  border: var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  background: var(--ultramarine-glow);
+  flex-shrink: 0;
+}
+.feature-card h3 {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+.feature-card p {
+  color: var(--graphite);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+/* ─── How It Works ───────────────────────────────────── */
+.steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 40px;
+  counter-reset: step;
+}
+.step {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  position: relative;
+}
+.step-number {
+  width: 56px;
+  height: 56px;
+  border: var(--border);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  font-weight: 800;
+  background: var(--white);
+  box-shadow: var(--shadow);
+  color: var(--ultramarine);
+  flex-shrink: 0;
+  transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+.step:hover .step-number {
+  transform: scale(1.08);
+  box-shadow: var(--shadow-lg);
+}
+.step h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+.step p {
+  color: var(--graphite);
+  font-size: 0.95rem;
+  line-height: 1.55;
+  max-width: 280px;
+}
+/* connector line between steps */
+.step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 28px;
+  left: calc(50% + 36px);
+  width: calc(100% - 32px);
+  height: 2px;
+  background: var(--parchment);
+}
+
+/* ─── Getting Started ────────────────────────────────── */
+.start-options {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 32px;
+}
+.start-card {
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  background: var(--white);
+  overflow: hidden;
+}
+.start-card-head {
+  padding: 20px 28px;
+  border-bottom: var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.start-card-head h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+.start-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 3px 8px;
+  border-radius: 2px;
+  background: var(--ultramarine);
+  color: #fff;
+}
+.start-card-body {
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.start-card-body p {
+  color: var(--graphite);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+.start-card-body ol {
+  list-style: none;
+  counter-reset: startStep;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0;
+}
+.start-card-body ol li {
+  counter-increment: startStep;
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 0.95rem;
+  color: var(--graphite);
+}
+.start-card-body ol li::before {
+  content: counter(startStep) ".";
+  font-weight: 700;
+  color: var(--ultramarine);
+  flex-shrink: 0;
+}
+pre {
+  background: var(--charcoal);
+  color: var(--linen);
+  padding: 16px 20px;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  line-height: 1.7;
+  overflow-x: auto;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+}
+pre:focus {
+  outline: 2px solid var(--ultramarine);
+  outline-offset: 2px;
+}
+pre .comment { color: var(--stone); }
+pre .cmd { color: #E8D5B7; }
+
+/* ─── AI Section ─────────────────────────────────────── */
+.ai-pipeline {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 24px;
+  align-items: center;
+}
+.ai-stage {
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  background: var(--white);
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ai-stage h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ai-stage p {
+  color: var(--graphite);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+.ai-arrow {
+  font-size: 1.5rem;
+  color: var(--stone);
+  animation: arrowPulse 2s ease-in-out infinite;
+}
+@keyframes arrowPulse {
+  0%, 100% { transform: translateX(0); opacity: 0.5; }
+  50%      { transform: translateX(6px); opacity: 1; }
+}
+.ai-optional {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ochre);
+}
+.ai-providers {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.ai-chip {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border: 1.5px solid var(--stone);
+  border-radius: 2px;
+  color: var(--graphite);
+}
+
+/* ─── Atmosphere ─────────────────────────────────────── */
+.atmosphere-demo {
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  background: var(--white);
+  max-width: 800px;
+  margin: 0 auto;
+  overflow: hidden;
+  position: relative;
+}
+.atmosphere-demo::before {
+  content: '';
+  position: absolute;
+  inset: -40px;
+  background: radial-gradient(ellipse at center, rgba(43, 79, 160, 0.06) 0%, transparent 70%);
+  z-index: -1;
+  pointer-events: none;
+}
+.atmo-header {
+  padding: 16px 24px;
+  border-bottom: var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.atmo-body {
+  padding: 32px;
+  display: flex;
+  gap: 28px;
+  align-items: flex-start;
+}
+.atmo-art {
+  width: 200px;
+  flex-shrink: 0;
+  border: var(--border);
+  border-radius: var(--radius);
+  aspect-ratio: 16/9;
+  object-fit: cover;
+}
+.atmo-text {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.atmo-title {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+.atmo-note {
+  font-size: 0.95rem;
+  color: var(--graphite);
+  font-style: italic;
+  line-height: 1.65;
+  min-height: 4.8em;
+}
+.atmo-note .typing-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--ultramarine);
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: blink 0.7s step-end infinite;
+}
+@keyframes blink {
+  50% { opacity: 0; }
+}
+.atmo-weather {
+  font-size: 0.8rem;
+  color: var(--graphite);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: opacity 0.5s var(--ease);
+}
+
+/* ─── Footer ─────────────────────────────────────────── */
+footer {
+  border-top: var(--border);
+  padding: 48px 0;
+  background: var(--linen);
+}
+.footer-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+.footer-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.footer-logo .logo-mark {
+  width: 28px;
+  height: 22px;
+}
+.footer-logo span {
+  font-weight: 700;
+  font-size: 0.9rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--charcoal);
+}
+.footer-links {
+  display: flex;
+  gap: 24px;
+  font-size: 0.9rem;
+  color: var(--graphite);
+}
+.footer-links a { color: var(--graphite); }
+.footer-links a:hover { color: var(--ultramarine); }
+.footer-credits a {
+  text-decoration: underline;
+  text-decoration-color: var(--stone);
+  text-underline-offset: 2px;
+}
+.footer-credits a:hover {
+  color: var(--ultramarine);
+  text-decoration-color: var(--ultramarine);
+}
+.footer-credits {
+  width: 100%;
+  margin-top: 16px;
+  padding-top: 20px;
+  border-top: 1px solid var(--parchment);
+  font-size: 0.8rem;
+  color: var(--graphite);
+  line-height: 1.6;
+}
+
+/* ─── Responsive ─────────────────────────────────────── */
+@media (max-width: 768px) {
+  .hero-inner {
+    grid-template-columns: 1fr;
+    gap: 40px;
+    text-align: center;
+  }
+  .hero-text { align-items: center; }
+  .logo-row { justify-content: center; }
+  .hero-sub { max-width: 100%; }
+  .cta-row { justify-content: center; }
+  .frame-tv { max-width: 360px; transform: rotate(0deg); }
+  .features-grid { grid-template-columns: 1fr; }
+  .feature-card.feature-star { grid-column: auto; }
+  .feature-card.feature-star {
+    flex-direction: column;
+    grid-column: auto;
+  }
+  .steps {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+  .step:not(:last-child)::after { display: none; }
+  .start-options { grid-template-columns: 1fr; }
+  .ai-pipeline {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+  .ai-arrow { transform: rotate(90deg); justify-self: center; animation: none; }
+  .atmo-body { flex-direction: column; }
+  .atmo-art { width: 100%; }
+  .footer-inner { justify-content: center; text-align: center; }
+  .footer-links { justify-content: center; }
+  .footer-credits { text-align: center; }
+  section { padding: 64px 0; }
+}
+
+/* ─── Reduced Motion ─────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+  }
+  .hero-logo-img,
+  .hero .logo-row,
+  .hero h1,
+  .hero-sub,
+  .hero .cta-row,
+  .frame-tv,
+  .frame-label,
+  .reveal {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ HERO ═══════════════════════════════════════════ -->
+<header role="banner">
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-text">
+      <img src="assets/logo/docent-logo.png" alt="Docent logo — a gallery room with a TV" class="hero-logo-img">
+      <div class="logo-row">
+        <div class="logo-text">Docent</div>
+      </div>
+      <h1>There's art on<br><em>TV tonight.</em></h1>
+      <p class="hero-sub">
+        An art gallery manager for Samsung Frame TVs.
+        Browse, upload, organize, and send artwork to your
+        wall from a museum-quality web interface.
+      </p>
+      <div class="cta-row">
+        <a href="#getting-started" class="btn btn-primary">Get Started</a>
+        <a href="https://github.com/danmunz/docent" class="btn btn-secondary">GitHub ↗</a>
+      </div>
+    </div>
+    <div class="frame-tv">
+      <div class="frame-outer">
+        <div class="frame-matte">
+          <img src="assets/sample/starry-night.jpg" alt="The Starry Night by Vincent van Gogh, displayed in a Samsung Frame TV" class="frame-art">
+        </div>
+      </div>
+      <div class="frame-stand"></div>
+      <div class="frame-label">
+        Vincent van Gogh · <em>The Starry Night</em> · 1889
+      </div>
+    </div>
+  </div>
+</section>
+</header>
+
+<main>
+<!-- ═══ FEATURES ═══════════════════════════════════════ -->
+<section class="bg-linen">
+  <div class="container">
+    <div class="section-head reveal">
+      <h2>The whole gallery, on your network</h2>
+      <p>Upload, organize, identify, and display. Everything happens locally.</p>
+    </div>
+    <div class="features-grid reveal-stagger">
+      <div class="feature-card reveal" style="--i:0">
+        <div class="feature-icon">🖼</div>
+        <h3>Gallery View</h3>
+        <p>Dense grid with hover titles, year grouping, sticky nav. Lightbox, keyboard shortcuts, lazy thumbnails.</p>
+      </div>
+      <div class="feature-card reveal" style="--i:1">
+        <div class="feature-icon">🤖</div>
+        <h3>AI Art Analysis</h3>
+        <p>Google Vision finds the painting in museum databases. Then Claude or OpenAI fills in the rest — artist, title, year, medium, movement, mood.</p>
+      </div>
+      <div class="feature-card reveal" style="--i:2">
+        <div class="feature-icon">✂️</div>
+        <h3>Upload &amp; Crop</h3>
+        <p>Drag-and-drop upload with automatic 16:9 compliance checking. Non-conforming images open a built-in crop editor. Choose from shadow box, modern, and panoramic mattes.</p>
+      </div>
+      <div class="feature-card feature-star reveal" style="--i:3">
+        <div class="feature-icon">🌦</div>
+        <div class="feature-body">
+          <h3>Atmosphere</h3>
+          <p>It checks the weather, reads the mood tags on your art, and picks something that fits. Rainy Tuesday? Different wall than a bright Saturday. Comes with a little note explaining why.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ HOW IT WORKS ═══════════════════════════════════ -->
+<section>
+  <div class="container">
+    <div class="section-head reveal">
+      <h2>Two minutes, tops</h2>
+      <p>No app store, no subscription, no cloud account. Runs on your machine, talks to your TV.</p>
+    </div>
+    <div class="steps reveal-stagger">
+      <div class="step reveal" style="--i:0">
+        <div class="step-number">1</div>
+        <h3>Clone &amp; Launch</h3>
+        <p>Double-click <strong>Docent.command</strong> or run from the terminal. A guided wizard handles setup — dependencies install automatically.</p>
+      </div>
+      <div class="step reveal" style="--i:1">
+        <div class="step-number">2</div>
+        <h3>Connect Your TV</h3>
+        <p>Enter your Frame TV's IP address. Docent connects over your local network. Your TV will ask you to allow it — press Allow on your remote.</p>
+      </div>
+      <div class="step reveal" style="--i:2">
+        <div class="step-number">3</div>
+        <h3>Curate</h3>
+        <p>Browse your gallery, upload new art, organize into collections. One click sends any piece to your Frame. Let Atmosphere choose for you.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ AI PIPELINE ════════════════════════════════════ -->
+<section class="bg-linen">
+  <div class="container">
+    <div class="section-head reveal">
+      <h2>Two ways to figure out what's on the wall</h2>
+      <p>Set up one or both. Either way, you get artist, title, year, and everything else back.</p>
+    </div>
+    <div class="ai-pipeline reveal">
+      <div class="ai-stage">
+        <span class="ai-optional">Optional</span>
+        <h3>🔍 Stage 1: Identify</h3>
+        <p>Google Vision reverse-image-searches your art across museum databases and art sites. Passes what it finds to Stage 2.</p>
+        <div class="ai-providers">
+          <span class="ai-chip">Google Vision</span>
+        </div>
+      </div>
+      <div class="ai-arrow">→</div>
+      <div class="ai-stage">
+        <h3>🎨 Stage 2: Analyze</h3>
+        <p>A vision model looks at the art (plus any hints from Stage 1) and writes back artist, title, year, medium, movement, mood, and a description.</p>
+        <div class="ai-providers">
+          <span class="ai-chip">Claude</span>
+          <span class="ai-chip">OpenAI</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ ATMOSPHERE DEMO ════════════════════════════════ -->
+<section>
+  <div class="container">
+    <div class="section-head reveal">
+      <h2>Atmosphere</h2>
+      <p>The weather changes. Your wall changes with it.</p>
+    </div>
+    <div class="atmosphere-demo reveal" id="atmo-demo">
+      <div class="atmo-header">
+        🌦&ensp;Today's Recommendation
+      </div>
+      <div class="atmo-body">
+        <img src="assets/sample/starry-night.jpg" alt="The Starry Night" class="atmo-art">
+        <div class="atmo-text">
+          <div class="atmo-title">The Starry Night</div>
+          <div class="atmo-note" id="atmo-note"></div>
+          <div class="atmo-weather" id="atmo-weather">☁️ 62°F · Partly cloudy · Arlington, VA</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ GETTING STARTED ════════════════════════════════ -->
+<section class="bg-linen" id="getting-started">
+  <div class="container">
+    <div class="section-head reveal">
+      <h2>Getting started</h2>
+      <p>Two ways to launch. Both take about two minutes.</p>
+    </div>
+    <div class="start-options reveal">
+      <div class="start-card">
+        <div class="start-card-head">
+          <h3>🖱 One-Click</h3>
+          <span class="start-badge">Recommended</span>
+        </div>
+        <div class="start-card-body">
+          <p>Best for most users. The setup wizard walks you through everything.</p>
+          <ol>
+            <li>Clone the repo:<br><pre tabindex="0"><span class="cmd">git clone https://github.com/danmunz/docent.git</span></pre></li>
+            <li>Double-click <strong>Docent.command</strong> in Finder</li>
+            <li>Follow the guided setup — enter your TV's IP, optionally add AI keys</li>
+          </ol>
+          <p>Python and dependencies install automatically if needed.</p>
+        </div>
+      </div>
+      <div class="start-card">
+        <div class="start-card-head">
+          <h3>⌨️ Terminal</h3>
+        </div>
+        <div class="start-card-body">
+          <p>For developers and terminal users.</p>
+          <pre tabindex="0"><span class="comment"># Clone and configure</span>
+<span class="cmd">git clone https://github.com/danmunz/docent.git</span>
+<span class="cmd">cd docent</span>
+<span class="cmd">cp .env.example .env</span>
+<span class="comment"># Edit .env — set DOCENT_TV_IP</span>
+
+<span class="comment"># Launch</span>
+<span class="cmd">uv run python3 server.py</span></pre>
+          <p>Open <strong>http://localhost:8000</strong> in your browser.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<!-- ═══ FOOTER ═════════════════════════════════════════ -->
+<footer role="contentinfo">
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-logo">
+        <div class="logo-mark"></div>
+        <span>Docent</span>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/danmunz/docent">GitHub</a>
+        <a href="https://github.com/danmunz/docent/blob/main/README.md">Docs</a>
+        <a href="https://github.com/danmunz/docent/blob/main/LICENSE">MIT License</a>
+      </div>
+      <div class="footer-credits">
+        Built on <a href="https://github.com/xchwarze/samsung-tv-ws-api">samsung-tv-ws-api</a>,
+        <a href="https://fastapi.tiangolo.com">FastAPI</a>,
+        <a href="https://www.uvicorn.org">Uvicorn</a>,
+        <a href="https://pillow.readthedocs.io">Pillow</a>, and
+        <a href="https://www.python-httpx.org">httpx</a>.
+        Weather via <a href="https://www.weather.gov/documentation/services-web-api">NWS</a> and <a href="https://open-meteo.com">Open-Meteo</a>.
+        Sample art: Vincent van Gogh, <em>The Starry Night</em> (1889), public domain.
+      </div>
+    </div>
+  </div>
+</footer>
+
+<!-- ═══ Scripts ═════════════════════════════════════════ -->
+<script>
+  /* ── Scroll Reveal with stagger support ── */
+  const revealObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        revealObserver.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+
+  /* ── Atmosphere: typing curator's note ── */
+  const ATMO_NOTE = "\u201CA cool, clear evening calls for a sky alive with motion. Van Gogh\u2019s cypresses reach upward like dark flames against those luminous, swirling blues \u2014 restless and radiant in equal measure.\u201D";
+  const noteEl = document.getElementById('atmo-note');
+  let noteTyped = false;
+
+  function typeNote() {
+    if (noteTyped) return;
+    noteTyped = true;
+    let i = 0;
+    const cursor = document.createElement('span');
+    cursor.className = 'typing-cursor';
+    noteEl.textContent = '';
+    noteEl.appendChild(cursor);
+
+    function tick() {
+      if (i < ATMO_NOTE.length) {
+        cursor.before(ATMO_NOTE[i]);
+        i++;
+        requestAnimationFrame(() => setTimeout(tick, 18));
+      } else {
+        /* Remove cursor after a beat */
+        setTimeout(() => cursor.remove(), 1200);
+      }
+    }
+    tick();
+  }
+
+  /* Trigger typing when atmosphere demo scrolls into view */
+  const atmoDemo = document.getElementById('atmo-demo');
+  const atmoObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        /* Small delay so the reveal animation starts first */
+        setTimeout(typeNote, 500);
+        atmoObserver.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.3 });
+  atmoObserver.observe(atmoDemo);
+
+  /* ── Atmosphere: cycling weather conditions ── */
+  const weatherStates = [
+    { icon: '☁️', text: '62°F · Partly cloudy · Arlington, VA' },
+    { icon: '🌧', text: '45°F · Light rain · Arlington, VA' },
+    { icon: '☀️', text: '78°F · Clear skies · Arlington, VA' },
+    { icon: '🌫', text: '54°F · Foggy · Arlington, VA' },
+  ];
+  const weatherEl = document.getElementById('atmo-weather');
+  let weatherIdx = 0;
+
+  setInterval(() => {
+    weatherIdx = (weatherIdx + 1) % weatherStates.length;
+    const next = weatherStates[weatherIdx];
+    weatherEl.style.opacity = '0';
+    setTimeout(() => {
+      weatherEl.textContent = next.icon + ' ' + next.text;
+      weatherEl.style.opacity = '1';
+    }, 500);
+  }, 7000);
+</script>
+</body>
+</html>
