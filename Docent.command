@@ -195,25 +195,30 @@ EOF
             USE_VISION="true"
         fi
 
-        cat > ai_config.json <<EOF
-{
-  "provider": "$PROVIDER_JSON",
-  "auto_analyze": true,
-  "claude": {
-    "api_key": "$(if [[ "$AI_PROVIDER" == "claude" ]]; then echo "$AI_KEY"; fi)",
-    "model": "claude-sonnet-4-20250514"
-  },
-  "opus_fallback": false,
-  "use_google_vision": $USE_VISION,
-  "openai": {
-    "api_key": "$(if [[ "$AI_PROVIDER" == "openai" ]]; then echo "$AI_KEY"; fi)",
-    "model": "gpt-4.1"
-  },
-  "google_vision": {
-    "api_key": "$GOOGLE_KEY"
-  }
+        python3 -c "
+import json, sys
+provider, ai_key, gv_key = sys.argv[1], sys.argv[2], sys.argv[3]
+config = {
+    'provider': provider,
+    'auto_analyze': True,
+    'claude': {
+        'api_key': ai_key if provider == 'claude' else '',
+        'model': 'claude-sonnet-4-20250514'
+    },
+    'opus_fallback': False,
+    'use_google_vision': bool(gv_key),
+    'openai': {
+        'api_key': ai_key if provider == 'openai' else '',
+        'model': 'gpt-4.1'
+    },
+    'google_vision': {
+        'api_key': gv_key
+    }
 }
-EOF
+with open('ai_config.json', 'w') as f:
+    json.dump(config, f, indent=2)
+    f.write('\n')
+" "$PROVIDER_JSON" "$AI_KEY" "$GOOGLE_KEY"
     fi
 
     # ── Summary ─────────────────────────────────────────────
