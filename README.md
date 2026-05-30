@@ -7,6 +7,10 @@ Send any image to your Samsung Frame TV with one click.
 
 Docent is a local web app that puts art on your TV. Drop an image in, press **"Display on Frame,"** and it appears on your screen — no Samsung app, no USB drive, no cloud upload. It also manages your full gallery with a museum-quality interface: browse, organize into collections, crop to 16:9, and swap what's showing anytime. Add AI art identification, weather-aware recommendations, and Google Drive import.
 
+<p align="center">
+  <img src="assets/images/docent_working.jpeg" alt="A laptop running Docent in front of a Samsung Frame TV displaying the selected artwork" width="700">
+</p>
+
 ## Features
 
 - **One-click display** — browse your gallery and press "Display on Frame" to instantly show any artwork on your TV. No Samsung app needed
