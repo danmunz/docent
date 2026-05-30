@@ -29,16 +29,18 @@ except ImportError:
 TV_IP = os.environ.get("DOCENT_TV_IP", "")
 TV_PORT = int(os.environ.get("DOCENT_TV_PORT", "8001"))
 TV_TIMEOUT = int(os.environ.get("DOCENT_TV_TIMEOUT", "15"))
-TOKEN_FILE = Path(__file__).parent / ".tv-token"
 
-CACHE_DIR = Path(__file__).parent / ".cache"
+DATA_DIR = Path(os.environ.get("DOCENT_DATA_DIR", "") or Path(__file__).parent)
+TOKEN_FILE = DATA_DIR / ".tv-token"
+
+CACHE_DIR = DATA_DIR / ".cache"
 THUMB_DIR = CACHE_DIR / "thumbnails"
 ORIGINALS_DIR = CACHE_DIR / "originals"
-COLLECTIONS_FILE = Path(__file__).parent / "collections.json"
-ARTWORK_META_FILE = Path(__file__).parent / "artwork_meta.json"
-AI_CONFIG_FILE = Path(__file__).parent / "ai_config.json"
-API_USAGE_FILE = Path(__file__).parent / "api_usage.json"
-DRIVE_SYNC_FILE = Path(__file__).parent / "drive_sync.json"
+COLLECTIONS_FILE = DATA_DIR / "collections.json"
+ARTWORK_META_FILE = DATA_DIR / "artwork_meta.json"
+AI_CONFIG_FILE = DATA_DIR / "ai_config.json"
+API_USAGE_FILE = DATA_DIR / "api_usage.json"
+DRIVE_SYNC_FILE = DATA_DIR / "drive_sync.json"
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("docent")
@@ -216,6 +218,7 @@ def _invalidate_art_cache() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
     CACHE_DIR.mkdir(exist_ok=True)
     THUMB_DIR.mkdir(exist_ok=True)
     ORIGINALS_DIR.mkdir(exist_ok=True)
