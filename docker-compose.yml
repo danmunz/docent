@@ -1,0 +1,16 @@
+services:
+  docent:
+    build: .
+    # image: ghcr.io/danmunz/docent:latest  # use this once images are published
+    network_mode: host  # required for TV WebSocket discovery on LAN
+    volumes:
+      - docent-data:/data
+    environment:
+      - DOCENT_TV_IP=${DOCENT_TV_IP:?Set DOCENT_TV_IP in .env or shell}
+    env_file:
+      - path: .env
+        required: false
+    restart: unless-stopped
+
+volumes:
+  docent-data:

@@ -1,0 +1,17 @@
+.git
+.venv
+.env
+.tv-token
+.cache
+__pycache__
+*.pyc
+*.egg-info
+.pytest_cache
+tests
+.github
+.playwright-mcp
+ai_config.json
+api_usage.json
+artwork_meta.json
+collections.json
+drive_sync.json
