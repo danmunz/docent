@@ -1,18 +1,19 @@
 # Docent
 
-A personal art gallery manager for Samsung Frame TVs.
+Send any image to your Samsung Frame TV with one click.
 
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
-Docent turns your Frame TV into a curated gallery — browse, upload, organize, and display artwork from a museum-inspired web interface on your local network. Add AI-powered art identification and analysis, weather-aware recommendations, and Google Drive import.
+Docent is a local web app that puts art on your TV. Drop an image in, press **"Display on Frame,"** and it appears on your screen — no Samsung app, no USB drive, no cloud upload. It also manages your full gallery with a museum-quality interface: browse, organize into collections, crop to 16:9, and swap what's showing anytime. Add AI art identification, weather-aware recommendations, and Google Drive import.
 
 ## Features
 
+- **One-click display** — browse your gallery and press "Display on Frame" to instantly show any artwork on your TV. No Samsung app needed
+- Drag-and-drop upload with 16:9 compliance checking and built-in crop editor — images go straight to your TV's storage
 - Dense gallery grid with hover title overlays, lazy-loaded thumbnails, lightbox preview, and keyboard navigation
 - Automatic year grouping with adaptive bucketing and a sticky group navigation bar
-- Drag-and-drop upload with 16:9 compliance checking and built-in crop editor
-- One-click display, matte selection (shadow box, modern, panoramic), and bulk operations
+- Matte selection (shadow box, modern, panoramic) and bulk operations
 - Collections for organizing artwork into named groups
 - Dynamic favicon that recolors to match the currently displayed artwork
 - AI art analysis — two-stage pipeline using Google Vision for identification and Claude or OpenAI for rich analysis (artist, title, year, medium, movement, mood)
