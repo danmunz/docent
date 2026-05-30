@@ -33,7 +33,9 @@ Docent is a local web app that puts art on your TV. Drop an image in, press **"D
 
 **Prerequisites:** A Samsung Frame TV (2016+) on your local network. Python 3.10+ and [uv](https://docs.astral.sh/uv/) are installed automatically if needed.
 
-### Option A: Double-click (recommended for most users)
+> **Linux users:** Pillow may need system libraries. On Debian/Ubuntu: `sudo apt install libjpeg-dev zlib1g-dev`
+
+### Option A: Double-click (macOS only)
 
 Double-click **`Docent.command`** in Finder. On first run, a guided setup wizard walks you through:
 
@@ -57,6 +59,13 @@ cp .env.example .env
 
 # Install and run
 uv run python3 server.py
+```
+
+Alternatively, if you prefer `pip`:
+
+```bash
+pip install -r requirements.txt
+python3 server.py
 ```
 
 Open **http://localhost:8000** in your browser.
@@ -129,6 +138,7 @@ Copy `.env.example` to `.env` and edit:
 | `DOCENT_TV_TIMEOUT` | `15` | Connection timeout in seconds |
 | `DOCENT_HOST` | `0.0.0.0` | Server bind address |
 | `DOCENT_PORT` | `8000` | Server port |
+| `DOCENT_DATA_DIR` | project root | Directory for data files (`.tv-token`, caches, JSON config) |
 
 ### AI and Sync Configuration
 
@@ -142,7 +152,7 @@ docent/
   server.py          # FastAPI backend — TV control, AI pipeline, Drive sync
   index.html         # Single-page frontend (vanilla HTML/CSS/JS)
   assets/            # Logo, fonts, and sample artwork
-  tests/             # 62 integration tests, run via pre-commit hook
+  tests/             # 73 integration tests, run via pre-commit hook
   pyproject.toml     # Dependencies and project metadata
   .env.example       # Environment variable template
 ```

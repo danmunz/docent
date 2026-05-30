@@ -209,7 +209,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0" },
     { name = "python-multipart", specifier = ">=0.0.9" },
     { name = "respx", marker = "extra == 'test'", specifier = ">=0.22" },
-    { name = "samsungtvws", git = "https://github.com/xchwarze/samsung-tv-ws-api.git" },
+    { name = "samsungtvws", specifier = ">=3.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]
 provides-extras = ["test"]
@@ -740,10 +740,14 @@ wheels = [
 [[package]]
 name = "samsungtvws"
 version = "3.0.4"
-source = { git = "https://github.com/xchwarze/samsung-tv-ws-api.git#aad62535b22844b26304c0f17604920a4aa343ba" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "requests" },
     { name = "websocket-client" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ac/65/1916c01ff163cbd0e3a5996dc2343f146d0754e06ba50c00cc4adda020f0/samsungtvws-3.0.4.tar.gz", hash = "sha256:f2f14f7beee118812d8440d1d21bf4dd143ca15f69dcea52f91a7a9d9a7d9c7e", size = 45847, upload-time = "2026-02-22T23:53:30.642Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0e/95/2a5980848b92640501f19ad93791865a62799b76fae565e291c049de3a6c/samsungtvws-3.0.4-py3-none-any.whl", hash = "sha256:3223388b7b789c5d44b0d6f68032755af7c4386009bbb91dc06ddfe026b3fc02", size = 48056, upload-time = "2026-02-22T23:53:29.399Z" },
 ]
 
 [[package]]
