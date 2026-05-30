@@ -218,6 +218,7 @@ def _invalidate_art_cache() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
     CACHE_DIR.mkdir(exist_ok=True)
     THUMB_DIR.mkdir(exist_ok=True)
     ORIGINALS_DIR.mkdir(exist_ok=True)
