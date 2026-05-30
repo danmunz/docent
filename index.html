@@ -576,31 +576,54 @@ pre .cmd { color: #E8D5B7; }
 }
 
 /* ─── Hero Photo ─────────────────────────────────────── */
-.hero-photo-wrap {
-  max-width: 900px;
-  margin: 0 auto;
+.hero-photo-break {
   position: relative;
-  border-radius: 12px;
   overflow: hidden;
+  margin: -1px 0;
 }
-.hero-photo-wrap::after {
+.hero-photo-break::before,
+.hero-photo-break::after {
   content: '';
   position: absolute;
-  inset: 0;
-  border-radius: 12px;
-  box-shadow: inset 0 0 80px 40px var(--linen);
+  left: 0;
+  right: 0;
+  height: 120px;
+  z-index: 1;
   pointer-events: none;
+}
+.hero-photo-break::before {
+  top: 0;
+  background: linear-gradient(to bottom, var(--linen) 0%, transparent 100%);
+}
+.hero-photo-break::after {
+  bottom: 0;
+  background: linear-gradient(to top, var(--white) 0%, transparent 100%);
 }
 .hero-photo {
   display: block;
   width: 100%;
-  border-radius: 12px;
-  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
-              filter 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  max-height: 70vh;
+  object-fit: cover;
+  object-position: center 40%;
+  transition: transform 0.6s var(--ease), filter 0.6s var(--ease);
 }
-.hero-photo-wrap:hover .hero-photo {
-  transform: scale(1.02);
-  filter: brightness(1.05);
+.hero-photo-break:hover .hero-photo {
+  transform: scale(1.015);
+  filter: brightness(1.04);
+}
+.hero-photo-caption {
+  position: absolute;
+  bottom: 28px;
+  right: 32px;
+  z-index: 2;
+  font-size: 0.8rem;
+  font-style: italic;
+  color: var(--graphite);
+  opacity: 0;
+  transition: opacity 0.4s var(--ease);
+}
+.hero-photo-break:hover .hero-photo-caption {
+  opacity: 0.7;
 }
 
 /* ─── Atmosphere ─────────────────────────────────────── */
@@ -878,13 +901,10 @@ footer {
 </section>
 
 <!-- ═══ HERO PHOTO ═════════════════════════════════════ -->
-<section>
-  <div class="container">
-    <div class="hero-photo-wrap reveal">
-      <img src="assets/images/docent_working.jpeg" alt="A laptop running Docent in front of a Samsung Frame TV displaying the selected artwork" class="hero-photo">
-    </div>
-  </div>
-</section>
+<div class="hero-photo-break reveal">
+  <img src="assets/images/docent_working.jpeg" alt="A laptop running Docent in front of a Samsung Frame TV displaying the selected artwork" class="hero-photo">
+  <span class="hero-photo-caption">Docent managing a gallery on a Samsung Frame TV</span>
+</div>
 
 <!-- ═══ HOW IT WORKS ═══════════════════════════════════ -->
 <section>
