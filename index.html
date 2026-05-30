@@ -575,6 +575,34 @@ pre .cmd { color: #E8D5B7; }
   color: var(--graphite);
 }
 
+/* ─── Hero Photo ─────────────────────────────────────── */
+.hero-photo-wrap {
+  max-width: 900px;
+  margin: 0 auto;
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.hero-photo-wrap::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  box-shadow: inset 0 0 80px 40px var(--linen);
+  pointer-events: none;
+}
+.hero-photo {
+  display: block;
+  width: 100%;
+  border-radius: 12px;
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+              filter 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.hero-photo-wrap:hover .hero-photo {
+  transform: scale(1.02);
+  filter: brightness(1.05);
+}
+
 /* ─── Atmosphere ─────────────────────────────────────── */
 .atmosphere-demo {
   border: var(--border);
@@ -845,6 +873,15 @@ footer {
           <p>It checks the weather, reads the mood tags on your art, and picks something that fits. Rainy Tuesday? Different wall than a bright Saturday. Comes with a little note explaining why.</p>
         </div>
       </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ HERO PHOTO ═════════════════════════════════════ -->
+<section>
+  <div class="container">
+    <div class="hero-photo-wrap reveal">
+      <img src="assets/images/docent_working.jpeg" alt="A laptop running Docent in front of a Samsung Frame TV displaying the selected artwork" class="hero-photo">
     </div>
   </div>
 </section>
