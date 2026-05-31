@@ -53,8 +53,11 @@ AI_CONFIG_FILE = DATA_DIR / "ai_config.json"
 API_USAGE_FILE = DATA_DIR / "api_usage.json"
 DRIVE_SYNC_FILE = DATA_DIR / "drive_sync.json"
 
-LOG_LEVEL = os.environ.get("DOCENT_LOG_LEVEL", "INFO").upper()
-logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO))
+_LOG_LEVEL_NAME = os.environ.get("DOCENT_LOG_LEVEL", "INFO").upper()
+_LOG_LEVEL = logging.getLevelName(_LOG_LEVEL_NAME)
+if not isinstance(_LOG_LEVEL, int):
+    _LOG_LEVEL = logging.INFO
+logging.basicConfig(level=_LOG_LEVEL)
 log = logging.getLogger("docent")
 
 _art_cache: list[dict] | None = None
