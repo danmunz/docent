@@ -143,6 +143,7 @@ Copy `.env.example` to `.env` and edit:
 | `DOCENT_RELOAD` | *(off)* | Set to `1` to enable uvicorn auto-reload (development only — off by default so writing data files can't restart the server mid-operation) |
 | `DOCENT_HOST` | `0.0.0.0` | Server bind address |
 | `DOCENT_PORT` | `8000` | Server port |
+| `DOCENT_LOG_LEVEL` | `INFO` | Log level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`) |
 | `DOCENT_DATA_DIR` | project root | Directory for data files (`.tv-token`, caches, JSON config) |
 
 ### AI and Sync Configuration

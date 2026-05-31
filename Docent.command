@@ -115,6 +115,7 @@ DOCENT_TV_IP=$TV_IP
 # DOCENT_TV_TIMEOUT=15
 # DOCENT_HOST=0.0.0.0
 # DOCENT_PORT=8000
+# DOCENT_LOG_LEVEL=INFO
 EOF
 
     # ── Step 2: AI Provider ─────────────────────────────────
