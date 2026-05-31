@@ -390,7 +390,10 @@ async def upload_art(
 ):
     chunks = []
     total = 0
-    async for chunk in file:
+    while True:
+        chunk = await file.read(1024 * 1024)
+        if not chunk:
+            break
         total += len(chunk)
         if total > MAX_UPLOAD_BYTES:
             raise HTTPException(413, f"File exceeds {MAX_UPLOAD_BYTES // (1024 * 1024)}MB limit")
