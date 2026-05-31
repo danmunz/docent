@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import re
+import socket
 import tempfile
 import uuid
 from contextlib import asynccontextmanager
@@ -19,6 +20,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.staticfiles import StaticFiles
 from PIL import Image
 from samsungtvws import SamsungTVWS
+from samsungtvws.exceptions import ResponseError
 
 try:
     from dotenv import load_dotenv
@@ -28,7 +30,16 @@ except ImportError:
 
 TV_IP = os.environ.get("DOCENT_TV_IP", "")
 TV_PORT = int(os.environ.get("DOCENT_TV_PORT", "8001"))
-TV_TIMEOUT = int(os.environ.get("DOCENT_TV_TIMEOUT", "15"))
+TV_TIMEOUT = int(os.environ.get("DOCENT_TV_TIMEOUT", "10"))
+# Wake-on-LAN target (the TV's MAC). When set, Docent wakes a sleeping Frame
+# before retrying a failed connection. Find it with: arp -n <tv-ip>
+TV_MAC = os.environ.get("DOCENT_TV_MAC", "")
+# How many times to (re)try establishing a TV conversation, and how long to
+# wait between tries. The Frame frequently accepts the TCP connection without
+# answering the art-mode handshake (busy with its on-screen UI, or mid
+# sleep/wake), so a single attempt is unreliable — we wake + retry.
+TV_CONNECT_ATTEMPTS = int(os.environ.get("DOCENT_TV_ATTEMPTS", "3"))
+TV_RETRY_DELAY = float(os.environ.get("DOCENT_TV_RETRY_DELAY", "2"))
 
 DATA_DIR = Path(os.environ.get("DOCENT_DATA_DIR", "") or Path(__file__).parent)
 TOKEN_FILE = DATA_DIR / ".tv-token"
@@ -77,6 +88,81 @@ def art_connection(tv: SamsungTVWS):
         tv.close()
         raise
     return art
+
+
+def _wake_tv() -> None:
+    """Send a Wake-on-LAN magic packet to the TV (no-op if no MAC configured).
+
+    The Samsung Frame parks its art-mode service to save power; a WoL packet
+    nudges it awake so the next connection attempt can succeed.
+    """
+    if not TV_MAC:
+        return
+    mac = TV_MAC.replace(":", "").replace("-", "").strip()
+    if len(mac) != 12:
+        log.debug("Ignoring malformed DOCENT_TV_MAC: %r", TV_MAC)
+        return
+    try:
+        packet = b"\xff" * 6 + bytes.fromhex(mac) * 16
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            s.sendto(packet, ("255.255.255.255", 9))
+            if TV_IP:
+                s.sendto(packet, (TV_IP, 9))
+        finally:
+            s.close()
+    except Exception as e:
+        log.debug("WoL send failed: %s", e)
+
+
+async def _tv_op(fn, *, attempts: int = TV_CONNECT_ATTEMPTS, timeout: float | None = None):
+    """Run a blocking TV operation off the event loop, reliably.
+
+    Opens a TV/art connection, runs ``fn(art)`` in a worker thread, then
+    closes the connection. Access is serialized by ``_tv_lock`` so only one
+    TV conversation happens at a time (the Frame dislikes concurrent
+    connections), while the event loop stays free to serve other requests.
+
+    Each attempt is bounded by ``timeout`` (default ``TV_TIMEOUT + 8``) so a
+    hung connection can never hold the lock forever — it raises and releases.
+    On a connection-type failure we send a Wake-on-LAN packet and retry up to
+    ``attempts`` times. A definitive ``ResponseError`` from the TV (e.g. the
+    matte "-10" rejection) is not retried.
+
+    Pass ``attempts=1`` for non-idempotent calls like uploads (so a lost
+    response can't trigger a duplicate), with a larger ``timeout`` to allow
+    the data transfer.
+    """
+    if timeout is None:
+        timeout = TV_TIMEOUT + 8
+
+    def _job():
+        tv = get_tv()
+        art = art_connection(tv)
+        try:
+            return fn(art)
+        finally:
+            tv.close()
+
+    async with _tv_lock:
+        last_exc: Exception | None = None
+        for attempt in range(attempts):
+            try:
+                return await asyncio.wait_for(asyncio.to_thread(_job), timeout=timeout)
+            except ResponseError:
+                raise  # TV answered with a definitive error — retrying won't help
+            except Exception as e:
+                last_exc = e
+                if attempt + 1 < attempts:
+                    log.info(
+                        "TV op attempt %d/%d failed (%s) — waking TV and retrying",
+                        attempt + 1, attempts, type(e).__name__,
+                    )
+                    _wake_tv()
+                    await asyncio.sleep(TV_RETRY_DELAY)
+        assert last_exc is not None
+        raise last_exc
 
 
 def _save_thumbnail(content_id: str, data: bytes | bytearray) -> None:
@@ -244,21 +330,17 @@ async def index():
 
 @app.get("/api/info")
 async def tv_info():
+    def _info(art):
+        supported = art.supported()
+        return {
+            "supported": supported,
+            "api_version": art.get_api_version() if supported else None,
+            "artmode": art.get_artmode() if supported else None,
+            "ip": TV_IP,
+        }
+
     try:
-        tv = get_tv()
-        art = art_connection(tv)
-        try:
-            supported = art.supported()
-            api_version = art.get_api_version() if supported else None
-            artmode = art.get_artmode() if supported else None
-            return {
-                "supported": supported,
-                "api_version": api_version,
-                "artmode": artmode,
-                "ip": TV_IP,
-            }
-        finally:
-            tv.close()
+        return await _tv_op(_info)
     except Exception as e:
         log.warning("TV connection failed: %s", e)
         raise HTTPException(502, "Cannot reach TV — is it on and connected?")
@@ -267,13 +349,7 @@ async def tv_info():
 @app.get("/api/device-info")
 async def device_info():
     try:
-        tv = get_tv()
-        art = art_connection(tv)
-        try:
-            info = art.get_device_info()
-            return {"device_info": info}
-        finally:
-            tv.close()
+        return await _tv_op(lambda art: {"device_info": art.get_device_info()})
     except Exception as e:
         log.warning("TV connection failed: %s", e)
         raise HTTPException(502, "Cannot reach TV — is it on and connected?")
@@ -310,17 +386,11 @@ async def get_thumbnail(content_id: str):
     cached = _get_cached_thumbnail(content_id)
     if cached:
         return Response(content=cached, media_type="image/jpeg")
-    async with _tv_lock:
-        tv = get_tv()
-        art = art_connection(tv)
-        try:
-            data = art.get_thumbnail(content_id)
-            if not data:
-                raise HTTPException(404, "No thumbnail")
-            _save_thumbnail(content_id, data)
-            return Response(content=bytes(data), media_type="image/jpeg")
-        finally:
-            tv.close()
+    data = await _tv_op(lambda art: art.get_thumbnail(content_id))
+    if not data:
+        raise HTTPException(404, "No thumbnail")
+    _save_thumbnail(content_id, data)
+    return Response(content=bytes(data), media_type="image/jpeg")
 
 
 @app.post("/api/thumbnails")
@@ -341,19 +411,13 @@ async def get_thumbnails_batch(body: dict):
 
     if missing:
         try:
-            async with _tv_lock:
-                tv = get_tv()
-                art = art_connection(tv)
-                try:
-                    result = art.get_thumbnail_list(missing)
-                    for name, data in result.items():
-                        for cid in missing:
-                            if name.startswith(cid):
-                                _save_thumbnail(cid, data)
-                                encoded[cid] = base64.b64encode(bytes(data)).decode()
-                                break
-                finally:
-                    tv.close()
+            result = await _tv_op(lambda art: art.get_thumbnail_list(missing))
+            for name, data in result.items():
+                for cid in missing:
+                    if name.startswith(cid):
+                        _save_thumbnail(cid, data)
+                        encoded[cid] = base64.b64encode(bytes(data)).decode()
+                        break
         except Exception as e:
             log.warning("Batch thumbnail fetch failed: %s", e)
 
@@ -364,19 +428,14 @@ async def get_thumbnails_batch(body: dict):
 
 @app.post("/api/select")
 async def select_art(body: dict):
+    global _current_id_cache
     content_id = body.get("content_id")
     if not content_id:
         raise HTTPException(400, "content_id required")
     _validate_content_id(content_id)
-    tv = get_tv()
-    art = art_connection(tv)
-    try:
-        art.select_image(content_id, show=True)
-        global _current_id_cache
-        _current_id_cache = content_id
-        return {"ok": True, "content_id": content_id}
-    finally:
-        tv.close()
+    await _tv_op(lambda art: art.select_image(content_id, show=True))
+    _current_id_cache = content_id
+    return {"ok": True, "content_id": content_id}
 
 
 # --- Upload ---
@@ -422,62 +481,62 @@ async def upload_art(
 
     original_name = filename.strip() or Path(file.filename or "image.jpg").stem
 
-    tv = get_tv()
-    art = art_connection(tv)
-    try:
-        log.info("Uploading %s (%dx%d, ext=%s, matte=%s)", original_name, w, h, ext, matte)
-        content_id = art.upload(data, matte=matte, file_type=ext)
-        _invalidate_art_cache()
+    # Push to the TV off the event loop so this (often slow) call doesn't
+    # freeze the rest of the app.
+    log.info("Uploading %s (%dx%d, ext=%s, matte=%s)", original_name, w, h, ext, matte)
+    content_id = await _tv_op(
+        lambda art: art.upload(data, matte=matte, file_type=ext),
+        attempts=1, timeout=120,
+    )
+    _invalidate_art_cache()
 
-        analysis_img = img.copy()
-        analysis_img.thumbnail((1280, 720), Image.LANCZOS)
-        buf = io.BytesIO()
-        analysis_img.save(buf, format="JPEG", quality=80)
-        (ORIGINALS_DIR / f"{content_id}.jpg").write_bytes(buf.getvalue())
+    analysis_img = img.copy()
+    analysis_img.thumbnail((1280, 720), Image.LANCZOS)
+    buf = io.BytesIO()
+    analysis_img.save(buf, format="JPEG", quality=80)
+    (ORIGINALS_DIR / f"{content_id}.jpg").write_bytes(buf.getvalue())
 
-        async with _meta_lock:
-            meta = _load_artwork_meta()
-            meta["artwork"][content_id] = {
-                "title": original_name,
-                "original_filename": file.filename or "",
-                "width": w,
-                "height": h,
-                "uploaded_at": datetime.now(timezone.utc).isoformat(),
-            }
-            _save_artwork_meta(meta)
+    async with _meta_lock:
+        meta = _load_artwork_meta()
+        meta["artwork"][content_id] = {
+            "title": original_name,
+            "original_filename": file.filename or "",
+            "width": w,
+            "height": h,
+            "uploaded_at": datetime.now(timezone.utc).isoformat(),
+        }
+        _save_artwork_meta(meta)
 
-        ai_result = None
-        ai_config = _load_ai_config()
-        provider = ai_config.get("provider", "claude")
-        has_key = bool(ai_config.get(provider, {}).get("api_key"))
-        should_analyze = ai_config.get("auto_analyze") and has_key
+    ai_result = None
+    ai_config = _load_ai_config()
+    provider = ai_config.get("provider", "claude")
+    has_key = bool(ai_config.get(provider, {}).get("api_key"))
+    should_analyze = ai_config.get("auto_analyze") and has_key
 
-        if analyze and should_analyze:
-            if not (THUMB_DIR / f"{content_id}.jpg").exists():
-                try:
-                    thumb_data = art.get_thumbnail(content_id)
-                    if thumb_data:
-                        _save_thumbnail(content_id, thumb_data)
-                except Exception:
-                    log.debug("Could not pre-fetch thumbnail for %s", content_id)
+    if analyze and should_analyze:
+        if not (THUMB_DIR / f"{content_id}.jpg").exists():
             try:
-                ai_result = await _analyze_artwork(content_id)
-            except Exception as e:
-                log.warning("Auto-analyze failed during upload for %s: %s", content_id, e)
-                ai_result = {"error": "Analysis failed"}
-        elif should_analyze:
-            asyncio.create_task(_analyze_artwork_background(content_id))
+                thumb_data = await _tv_op(lambda art: art.get_thumbnail(content_id))
+                if thumb_data:
+                    _save_thumbnail(content_id, thumb_data)
+            except Exception:
+                log.debug("Could not pre-fetch thumbnail for %s", content_id)
+        try:
+            ai_result = await _analyze_artwork(content_id)
+        except Exception as e:
+            log.warning("Auto-analyze failed during upload for %s: %s", content_id, e)
+            ai_result = {"error": "Analysis failed"}
+    elif should_analyze:
+        asyncio.create_task(_analyze_artwork_background(content_id))
 
-        resp = {"ok": True, "content_id": content_id, "title": original_name, "width": w, "height": h}
-        if ai_result:
-            if "error" in ai_result:
-                resp["ai_error"] = ai_result["error"]
-            else:
-                resp["ai_meta"] = ai_result["ai_meta"]
-                resp["title"] = ai_result.get("title", original_name)
-        return resp
-    finally:
-        tv.close()
+    resp = {"ok": True, "content_id": content_id, "title": original_name, "width": w, "height": h}
+    if ai_result:
+        if "error" in ai_result:
+            resp["ai_error"] = ai_result["error"]
+        else:
+            resp["ai_meta"] = ai_result["ai_meta"]
+            resp["title"] = ai_result.get("title", original_name)
+    return resp
 
 
 # --- Delete ---
@@ -488,21 +547,16 @@ async def delete_art(body: dict):
     if not content_ids:
         raise HTTPException(400, "content_ids required")
     _validate_content_ids(content_ids)
-    tv = get_tv()
-    art = art_connection(tv)
-    try:
-        ok = art.delete_list(content_ids)
+    ok = await _tv_op(lambda art: art.delete_list(content_ids))
+    for cid in content_ids:
+        (THUMB_DIR / f"{cid}.jpg").unlink(missing_ok=True)
+    _invalidate_art_cache()
+    async with _meta_lock:
+        meta = _load_artwork_meta()
         for cid in content_ids:
-            (THUMB_DIR / f"{cid}.jpg").unlink(missing_ok=True)
-        _invalidate_art_cache()
-        async with _meta_lock:
-            meta = _load_artwork_meta()
-            for cid in content_ids:
-                meta["artwork"].pop(cid, None)
-            _save_artwork_meta(meta)
-        return {"ok": ok}
-    finally:
-        tv.close()
+            meta["artwork"].pop(cid, None)
+        _save_artwork_meta(meta)
+    return {"ok": ok}
 
 
 # --- Matte ---
@@ -510,14 +564,9 @@ async def delete_art(body: dict):
 @app.get("/api/mattes")
 async def list_mattes():
     try:
-        tv = get_tv()
+        return await _tv_op(lambda art: art.get_matte_list())
     except Exception:
         raise HTTPException(502, "Cannot reach TV")
-    art = art_connection(tv)
-    try:
-        return art.get_matte_list()
-    finally:
-        tv.close()
 
 
 @app.post("/api/matte")
@@ -527,22 +576,14 @@ async def change_matte(body: dict):
     if not content_id:
         raise HTTPException(400, "content_id required")
     _validate_content_id(content_id)
+    log.info("Changing matte: content_id=%s, matte_id=%s", content_id, matte_id)
     try:
-        tv = get_tv()
-    except Exception:
-        raise HTTPException(502, "Cannot reach TV")
-    art = art_connection(tv)
-    try:
-        log.info("Changing matte: content_id=%s, matte_id=%s", content_id, matte_id)
-        art.change_matte(content_id, matte_id)
+        await _tv_op(lambda art: art.change_matte(content_id, matte_id))
         return {"ok": True}
     except Exception as e:
-        err = str(e)
-        if "error number" in err:
-            raise HTTPException(422, f"TV rejected matte change — this image may not support that matte style")
-        raise
-    finally:
-        tv.close()
+        if "error number" in str(e):
+            raise HTTPException(422, "TV rejected matte change — this image may not support that matte style")
+        raise HTTPException(502, "Cannot reach TV")
 
 
 # --- Favourite ---
@@ -555,15 +596,10 @@ async def toggle_favourite(body: dict):
         raise HTTPException(400, "content_id required")
     _validate_content_id(content_id)
     try:
-        tv = get_tv()
+        await _tv_op(lambda art: art.set_favourite(content_id, status))
+        return {"ok": True}
     except Exception:
         raise HTTPException(502, "Cannot reach TV")
-    art = art_connection(tv)
-    try:
-        art.set_favourite(content_id, status)
-        return {"ok": True}
-    finally:
-        tv.close()
 
 
 # --- Art mode toggle ---
@@ -574,15 +610,10 @@ async def set_artmode(body: dict):
     if mode is None:
         raise HTTPException(400, "mode required (true/false)")
     try:
-        tv = get_tv()
+        await _tv_op(lambda art: art.set_artmode(mode))
+        return {"ok": True, "mode": mode}
     except Exception:
         raise HTTPException(502, "Cannot reach TV")
-    art = art_connection(tv)
-    try:
-        art.set_artmode(mode)
-        return {"ok": True, "mode": mode}
-    finally:
-        tv.close()
 
 
 # --- Photo filters ---
@@ -590,14 +621,9 @@ async def set_artmode(body: dict):
 @app.get("/api/filters")
 async def get_filters():
     try:
-        tv = get_tv()
+        return await _tv_op(lambda art: {"filters": art.get_photo_filter_list()})
     except Exception:
         raise HTTPException(502, "Cannot reach TV")
-    art = art_connection(tv)
-    try:
-        return {"filters": art.get_photo_filter_list()}
-    finally:
-        tv.close()
 
 
 @app.post("/api/filter")
@@ -608,15 +634,10 @@ async def set_filter(body: dict):
         raise HTTPException(400, "content_id and filter_id required")
     _validate_content_id(content_id)
     try:
-        tv = get_tv()
+        await _tv_op(lambda art: art.set_photo_filter(content_id, filter_id))
+        return {"ok": True}
     except Exception:
         raise HTTPException(502, "Cannot reach TV")
-    art = art_connection(tv)
-    try:
-        art.set_photo_filter(content_id, filter_id)
-        return {"ok": True}
-    finally:
-        tv.close()
 
 
 # --- Slideshow ---
@@ -627,19 +648,16 @@ async def set_slideshow(body: dict):
     shuffle = body.get("shuffle", True)
     category_id = body.get("category_id")
     try:
-        tv = get_tv()
-    except Exception:
-        raise HTTPException(502, "Cannot reach TV")
-    art = art_connection(tv)
-    try:
-        art.set_slideshow_status(
-            duration=duration,
-            type=shuffle,
-            category_id=category_id,
+        await _tv_op(
+            lambda art: art.set_slideshow_status(
+                duration=duration,
+                type=shuffle,
+                category_id=category_id,
+            )
         )
         return {"ok": True}
-    finally:
-        tv.close()
+    except Exception:
+        raise HTTPException(502, "Cannot reach TV")
 
 
 # --- Collections ---
@@ -1553,12 +1571,10 @@ async def run_drive_sync(sync_id: str):
                     ext = "jpg"
 
                 matte = "shadowbox_polar"
-                tv = get_tv()
-                art = art_connection(tv)
-                try:
-                    content_id = art.upload(image_data, matte=matte, file_type=ext)
-                finally:
-                    tv.close()
+                content_id = await _tv_op(
+                    lambda art: art.upload(image_data, matte=matte, file_type=ext),
+                    attempts=1, timeout=120,
+                )
 
                 _invalidate_art_cache()
 
@@ -1890,7 +1906,20 @@ def main():
     import uvicorn
     host = os.environ.get("DOCENT_HOST", "0.0.0.0")
     port = int(os.environ.get("DOCENT_PORT", "8000"))
-    uvicorn.run("server:app", host=host, port=port, reload=True)
+    # Auto-reload is OFF by default. Docent writes its own data (cache,
+    # *.json, token) into this folder, so watching it would restart the
+    # server mid-upload and kill in-flight work. Developers can opt in with
+    # DOCENT_RELOAD=1; even then we exclude the data files from the watcher.
+    if os.environ.get("DOCENT_RELOAD") == "1":
+        uvicorn.run(
+            "server:app",
+            host=host,
+            port=port,
+            reload=True,
+            reload_excludes=[".cache/*", "*.json", ".tv-token"],
+        )
+    else:
+        uvicorn.run("server:app", host=host, port=port)
 
 
 if __name__ == "__main__":

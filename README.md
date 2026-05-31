@@ -135,8 +135,12 @@ Copy `.env.example` to `.env` and edit:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DOCENT_TV_IP` | *(required)* | Your Samsung Frame TV's IP address |
+| `DOCENT_TV_MAC` | *(unset)* | TV's MAC address. When set, Docent sends a Wake-on-LAN packet to wake a sleeping Frame before retrying a connection. Find it with `arp -n <tv-ip>`. |
 | `DOCENT_TV_PORT` | `8001` | TV WebSocket port |
-| `DOCENT_TV_TIMEOUT` | `15` | Connection timeout in seconds |
+| `DOCENT_TV_TIMEOUT` | `10` | Per-attempt TV connection/operation timeout in seconds |
+| `DOCENT_TV_ATTEMPTS` | `3` | How many times to retry establishing a TV connection (the Frame often accepts the socket without answering the art handshake) |
+| `DOCENT_TV_RETRY_DELAY` | `2` | Seconds to wait between TV connection attempts |
+| `DOCENT_RELOAD` | *(off)* | Set to `1` to enable uvicorn auto-reload (development only — off by default so writing data files can't restart the server mid-operation) |
 | `DOCENT_HOST` | `0.0.0.0` | Server bind address |
 | `DOCENT_PORT` | `8000` | Server port |
 | `DOCENT_DATA_DIR` | project root | Directory for data files (`.tv-token`, caches, JSON config) |
