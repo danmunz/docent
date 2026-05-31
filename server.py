@@ -9,13 +9,14 @@ import os
 import re
 import socket
 import tempfile
+import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
-from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.staticfiles import StaticFiles
 from PIL import Image
@@ -53,7 +54,15 @@ AI_CONFIG_FILE = DATA_DIR / "ai_config.json"
 API_USAGE_FILE = DATA_DIR / "api_usage.json"
 DRIVE_SYNC_FILE = DATA_DIR / "drive_sync.json"
 
-logging.basicConfig(level=logging.INFO)
+_LOG_LEVEL_NAME = os.environ.get("DOCENT_LOG_LEVEL", "INFO").upper()
+_LOG_LEVEL = logging.getLevelName(_LOG_LEVEL_NAME)
+if not isinstance(_LOG_LEVEL, int):
+    _LOG_LEVEL = logging.INFO
+logging.basicConfig(
+    level=_LOG_LEVEL,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 log = logging.getLogger("docent")
 
 _art_cache: list[dict] | None = None
@@ -317,6 +326,17 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Docent", lifespan=lifespan)
 app.mount("/assets", StaticFiles(directory=Path(__file__).parent / "assets"), name="assets")
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    if request.url.path.startswith("/assets"):
+        return await call_next(request)
+    start = time.time()
+    response = await call_next(request)
+    duration = time.time() - start
+    log.info("%s %s %d %.2fs", request.method, request.url.path, response.status_code, duration)
+    return response
 
 
 # --- Static frontend ---
@@ -1910,16 +1930,18 @@ def main():
     # *.json, token) into this folder, so watching it would restart the
     # server mid-upload and kill in-flight work. Developers can opt in with
     # DOCENT_RELOAD=1; even then we exclude the data files from the watcher.
+    uvi_level = _LOG_LEVEL_NAME.lower()
     if os.environ.get("DOCENT_RELOAD") == "1":
         uvicorn.run(
             "server:app",
             host=host,
             port=port,
+            log_level=uvi_level,
             reload=True,
             reload_excludes=[".cache/*", "*.json", ".tv-token"],
         )
     else:
-        uvicorn.run("server:app", host=host, port=port)
+        uvicorn.run("server:app", host=host, port=port, log_level=uvi_level)
 
 
 if __name__ == "__main__":
