@@ -5,6 +5,7 @@ Send any image to your Samsung Frame TV with one click.
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 ![Docker](https://img.shields.io/badge/docker-supported-blue?logo=docker)
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-☕-6f888d?style=flat-square)](https://buymeacoffee.com/danmunz)
 
 Docent is a local web app that puts art on your TV. Drop an image in, press **"Display on Frame,"** and it appears on your screen — no Samsung app, no USB drive, no cloud upload. It also manages your full gallery with a museum-quality interface: browse, organize into collections, crop to 16:9, and swap what's showing anytime. Add AI art identification, weather-aware recommendations, and Google Drive import.
 
@@ -169,28 +170,23 @@ Data files are auto-created on first run and git-ignored: `.tv-token`, `ai_confi
 
 Docker is the easiest way to run Docent on Linux, Unraid, Synology, or any home server.
 
+**Quick start** (pre-built image, single copy-paste command):
+
 ```bash
-# Clone and configure
+docker run -d --network host -e DOCENT_TV_IP=192.168.1.XXX -v docent-data:/data --name docent ghcr.io/danmunz/docent:latest
+```
+
+Open **http://localhost:8000** in your browser. Replace `192.168.1.XXX` with your Frame TV's IP address.
+
+**Docker Compose** (if you prefer):
+
+```bash
 git clone https://github.com/danmunz/docent.git
 cd docent
 cp .env.example .env
 # Edit .env and set DOCENT_TV_IP
-
-# Run with Docker Compose
 docker compose up -d
 ```
-
-Or without Compose:
-
-```bash
-docker build -t docent .
-docker run -d --network host \
-  -e DOCENT_TV_IP=192.168.1.XXX \
-  -v docent-data:/data \
-  --name docent docent
-```
-
-Open **http://localhost:8000** in your browser.
 
 `--network host` is recommended so the server can reach your TV on the local network. Data (artwork metadata, caches, TV token) persists in the `docent-data` volume.
 

@@ -1680,6 +1680,22 @@
       transition-duration: 0.01ms !important;
     }
   }
+
+  .app-footer {
+    text-align: center;
+    padding: 16px 12px;
+    font-size: 12px;
+    color: rgba(58, 54, 50, 0.45);
+    letter-spacing: 0.01em;
+  }
+  .app-footer a {
+    color: rgba(58, 54, 50, 0.55);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  .app-footer a:hover {
+    color: var(--accent);
+  }
 </style>
 </head>
 <body>
@@ -1978,6 +1994,12 @@
     <button class="lightbox-close" onclick="closeLightbox()" title="Close fullscreen view" aria-label="Close">&times;</button>
     <img id="lightboxImg" src="" alt="">
   </div>
+
+  <footer class="app-footer">
+    Coded with ❤️ by <a href="https://github.com/danmunz" target="_blank" rel="noopener">@danmunz</a>
+    · <a href="https://buymeacoffee.com/danmunz" target="_blank" rel="noopener">Buy me a coffee</a>
+    · <a href="https://github.com/sponsors/danmunz" target="_blank" rel="noopener">Sponsor me on GitHub</a>
+  </footer>
 
   <script>
     let artItems = [];
