@@ -1159,8 +1159,8 @@ footer {
       </div>
     </div>
     <div class="quotes-nav reveal">
-      <button onclick="document.getElementById('quotesTrack').scrollBy({left:-424,behavior:'smooth'})" aria-label="Previous quote">&#8592;</button>
-      <button onclick="document.getElementById('quotesTrack').scrollBy({left:424,behavior:'smooth'})" aria-label="Next quote">&#8594;</button>
+      <button onclick="scrollQuotes(-1)" aria-label="Previous quote">&#8592;</button>
+      <button onclick="scrollQuotes(1)" aria-label="Next quote">&#8594;</button>
     </div>
   </div>
 </section>
@@ -1245,6 +1245,20 @@ footer {
 
 <!-- ═══ Scripts ═════════════════════════════════════════ -->
 <script>
+  /* ── Quotes carousel (infinite wrap) ── */
+  function scrollQuotes(dir) {
+    const track = document.getElementById('quotesTrack');
+    const card = track.querySelector('.quote-card');
+    const step = card.offsetWidth + 24; /* card width + gap */
+    if (dir > 0 && track.scrollLeft + track.offsetWidth >= track.scrollWidth - 4) {
+      track.scrollTo({ left: 0, behavior: 'smooth' });
+    } else if (dir < 0 && track.scrollLeft <= 4) {
+      track.scrollTo({ left: track.scrollWidth, behavior: 'smooth' });
+    } else {
+      track.scrollBy({ left: dir * step, behavior: 'smooth' });
+    }
+  }
+
   /* ── Scroll Reveal with stagger support ── */
   const revealObserver = new IntersectionObserver((entries) => {
     entries.forEach(e => {
