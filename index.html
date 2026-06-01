@@ -434,7 +434,7 @@ section {
 /* ─── Getting Started ────────────────────────────────── */
 .start-options {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 32px;
 }
 .start-card {
@@ -967,12 +967,13 @@ footer {
       <div class="logo-row">
         <div class="logo-text">Docent</div>
       </div>
-      <h1>Put art on your<br><em>TV. One click.</em></h1>
+      <h1>There’s artwork<br><em>on TV tonight.</em></h1>
       <p class="hero-sub">
+        Docent is a gallery manager that actually
+        gets art onto your Samsung Frame TV with one click.
         Drop an image into Docent, press "Display on Frame,"
         and it's on your wall. No Samsung app, no USB drive,
-        no cloud upload. A full gallery manager that actually
-        gets art onto your TV.
+        no cloud upload. 
       </p>
       <div class="cta-row">
         <a href="#getting-started" class="btn btn-primary">Get Started</a>
@@ -1007,18 +1008,18 @@ footer {
         <div class="feature-icon">📺</div>
         <div class="feature-body">
           <h3>One-Click Display</h3>
-          <p>This is the part people miss: Docent doesn't just manage your art — it sends it to your TV. Press "Display on Frame" and the image appears on your wall instantly. No Samsung app, no USB stick, no cloud upload. Just click.</p>
+          <p><b>Docent doesn't just manage your art — it sends it to your TV.</b> Press "Display on Frame" and the image appears on your wall instantly. Choose your frame and matte style right in the app. No Samsung app, no USB stick, no cloud upload. Just click.</p>
         </div>
       </div>
       <div class="feature-card reveal" style="--i:1">
         <div class="feature-icon">🖼</div>
         <h3>Gallery View</h3>
-        <p>Dense grid with hover titles, year grouping, sticky nav. Lightbox, keyboard shortcuts, lazy thumbnails.</p>
+        <p>Gorgeous scrolling view that lets you browse your art like a real gallery. Sort by year, artist, school, and more.</p>
       </div>
       <div class="feature-card reveal" style="--i:2">
         <div class="feature-icon">🤖</div>
         <h3>AI Art Analysis</h3>
-        <p>Google Vision finds the painting in museum databases. Then Claude or OpenAI fills in the rest — artist, title, year, medium, movement, mood. Every field links to Wikipedia so you can keep learning.</p>
+        <p>Fill in art metadata like artist, title, year, medium, movement and mood automatically using Claude, GPT, Google Vision – or have them work together. Every field links to Wikipedia so you can keep learning.</p>
       </div>
       <div class="feature-card reveal" style="--i:3">
         <div class="feature-icon">✂️</div>
@@ -1029,7 +1030,7 @@ footer {
         <div class="feature-icon">🌦</div>
         <div class="feature-body">
           <h3>Atmosphere</h3>
-          <p>It checks the weather, reads the mood tags on your art, and picks something that fits. Rainy Tuesday? Different wall than a bright Saturday. Comes with a little note explaining why.</p>
+          <p>Get art that feels right for your day. Docent’s Atmosphere feature checks the weather, reads the mood tags on your art, and picks something that fits. Rainy Tuesday? Different wall than a bright Saturday. It even explains its choices, like a real Docent.</p>
         </div>
       </div>
     </div>
@@ -1046,8 +1047,8 @@ footer {
 <section>
   <div class="container">
     <div class="section-head reveal">
-      <h2>Two minutes, tops</h2>
-      <p>No app store, no subscription, no cloud account. Runs on your machine, talks to your TV.</p>
+      <h2>Get going in two minutes, tops</h2>
+      <p>No app store, no subscription, no cloud account. Docent is free open-source software that stays on your machine, runs on your network, and talks to your TV.</p>
     </div>
     <div class="steps reveal-stagger">
       <div class="step reveal" style="--i:0">
@@ -1170,7 +1171,7 @@ footer {
   <div class="container">
     <div class="section-head reveal">
       <h2>Getting started</h2>
-      <p>Two ways to launch. Both take about two minutes.</p>
+      <p>Three ways to launch. All take about two minutes.</p>
     </div>
     <div class="start-options reveal">
       <div class="start-card">
@@ -1203,6 +1204,20 @@ footer {
 <span class="comment"># Launch</span>
 <span class="cmd">uv run python3 server.py</span></pre>
           <p>Open <strong>http://localhost:8000</strong> in your browser.</p>
+        </div>
+      </div>
+      <div class="start-card">
+        <div class="start-card-head">
+          <h3>🐳 Docker</h3>
+        </div>
+        <div class="start-card-body">
+          <p>For Unraid, Synology, or any Linux home server.</p>
+          <pre tabindex="0"><span class="cmd">docker run -d --network host \
+  -e DOCENT_TV_IP=192.168.1.XXX \
+  -v docent-data:/data \
+  --name docent \
+  ghcr.io/danmunz/docent:latest</span></pre>
+          <p>Open <strong>http://localhost:8000</strong> in your browser. Data persists in the <code>docent-data</code> volume.</p>
         </div>
       </div>
     </div>
