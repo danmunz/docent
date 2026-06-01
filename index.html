@@ -760,6 +760,40 @@ footer {
   color: var(--graphite);
   line-height: 1.6;
 }
+.footer-support {
+  width: 100%;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--parchment);
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--graphite);
+  line-height: 1.8;
+}
+.footer-support p {
+  margin: 0 0 12px;
+}
+.footer-support-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.footer-support-links a {
+  color: var(--graphite);
+  text-decoration: none;
+  font-size: 0.85rem;
+  transition: color 0.15s;
+}
+.footer-support-links a:hover {
+  color: var(--ultramarine);
+}
+.footer-support-links img {
+  height: 32px;
+  border-radius: 6px;
+  vertical-align: middle;
+}
 
 /* ─── Responsive ─────────────────────────────────────── */
 @media (max-width: 768px) {
@@ -795,6 +829,7 @@ footer {
   .footer-inner { justify-content: center; text-align: center; }
   .footer-links { justify-content: center; }
   .footer-credits { text-align: center; }
+  .footer-support { text-align: center; }
   section { padding: 64px 0; }
 }
 
@@ -1051,6 +1086,13 @@ footer {
         <a href="https://www.python-httpx.org">httpx</a>.
         Weather via <a href="https://www.weather.gov/documentation/services-web-api">NWS</a> and <a href="https://open-meteo.com">Open-Meteo</a>.
         Sample art: Vincent van Gogh, <em>The Starry Night</em> (1889), public domain.
+      </div>
+      <div class="footer-support">
+        <p>Docent is free and open source. If it's useful to you, consider supporting development.</p>
+        <div class="footer-support-links">
+          <a href="https://www.buymeacoffee.com/danmunz" target="_blank" rel="noopener"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=☕&slug=danmunz&button_colour=6f888d&font_colour=ffffff&font_family=Poppins&outline_colour=ffffff&coffee_colour=FFDD00" alt="Buy Me A Coffee"></a>
+          <a href="https://github.com/sponsors/danmunz" target="_blank" rel="noopener">♡ Sponsor on GitHub</a>
+        </div>
       </div>
     </div>
   </div>
