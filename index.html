@@ -488,9 +488,13 @@ section {
   counter-increment: startStep;
   display: flex;
   gap: 10px;
-  align-items: baseline;
+  align-items: first baseline;
   font-size: 0.95rem;
   color: var(--graphite);
+}
+.start-card-body ol li > span {
+  flex: 1;
+  min-width: 0;
 }
 .start-card-body ol li::before {
   content: counter(startStep) ".";
@@ -1182,9 +1186,9 @@ footer {
         <div class="start-card-body">
           <p>Best for most users. The setup wizard walks you through everything.</p>
           <ol>
-            <li>Clone the repo:<br><pre tabindex="0"><span class="cmd">git clone https://github.com/danmunz/docent.git</span></pre></li>
-            <li>Double-click <strong>Docent.command</strong> in Finder</li>
-            <li>Follow the guided setup — enter your TV's IP, optionally add AI keys</li>
+            <li><span>Clone the repo:<br><pre tabindex="0"><span class="cmd">git clone https://github.com/danmunz/docent.git</span></pre></span></li>
+            <li><span>Double-click <strong>Docent.command</strong> in Finder</span></li>
+            <li><span>Follow the guided setup — enter your TV's IP, optionally add AI keys</span></li>
           </ol>
           <p>Python and dependencies install automatically if needed.</p>
         </div>
