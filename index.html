@@ -770,6 +770,106 @@ footer {
   color: var(--graphite);
   line-height: 1.8;
 }
+
+/* ─── Quotes Carousel ───────────────────────────────── */
+.quotes-track {
+  display: flex;
+  gap: 24px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px 0 24px;
+  scrollbar-width: none;
+}
+.quotes-track::-webkit-scrollbar { display: none; }
+.quote-card {
+  flex: 0 0 min(400px, 85vw);
+  scroll-snap-align: start;
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  background: var(--white);
+  padding: 36px 32px 28px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 20px;
+}
+.quote-card::before {
+  content: '\201C';
+  position: absolute;
+  top: 12px;
+  left: 16px;
+  font-size: 4rem;
+  line-height: 1;
+  color: var(--parchment);
+  font-family: Georgia, serif;
+  pointer-events: none;
+}
+.quote-text {
+  font-size: 1.05rem;
+  font-style: italic;
+  color: var(--charcoal);
+  line-height: 1.65;
+  position: relative;
+  z-index: 1;
+}
+.quote-attr {
+  font-size: 0.8rem;
+  color: var(--stone);
+}
+.quote-attr a {
+  color: var(--stone);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.quote-attr a:hover {
+  color: var(--graphite);
+}
+.quotes-nav {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+.quotes-nav button {
+  width: 40px;
+  height: 40px;
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  font-size: 1.1rem;
+  color: var(--charcoal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s var(--ease);
+}
+.quotes-nav button:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translate(-1px, -1px);
+}
+.quotes-press {
+  text-align: center;
+  margin-bottom: 24px;
+  font-size: 0.85rem;
+  color: var(--stone);
+  letter-spacing: 0.04em;
+}
+.quotes-press a {
+  color: var(--stone);
+  text-decoration: none;
+  border-bottom: 1px solid var(--parchment);
+  transition: color 0.15s, border-color 0.15s;
+}
+.quotes-press a:hover {
+  color: var(--graphite);
+  border-color: var(--graphite);
+}
 .footer-support p {
   margin: 0 0 12px;
 }
@@ -830,6 +930,7 @@ footer {
   .footer-links { justify-content: center; }
   .footer-credits { text-align: center; }
   .footer-support { text-align: center; }
+  .quote-card { flex: 0 0 85vw; }
   section { padding: 64px 0; }
 }
 
@@ -1016,6 +1117,50 @@ footer {
           <div class="atmo-weather" id="atmo-weather">☁️ 62°F · Partly cloudy · Arlington, VA</div>
         </div>
       </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ QUOTES ═════════════════════════════════════════ -->
+<section class="bg-linen">
+  <div class="container">
+    <div class="section-head reveal">
+      <h2>What people are saying about Docent</h2>
+    </div>
+    <div class="quotes-press reveal">Featured on <a href="https://www.theverge.com/tech/940510/docent-is-a-free-open-source-art-gallery-manager-for-your-frame-tv" target="_blank" rel="noopener">The Verge</a></div>
+    <div class="quotes-track reveal" id="quotesTrack">
+      <div class="quote-card">
+        <div class="quote-text">Docent finally made this click for me. In ~7 years I've never gotten images onto my Frame this easily. I really love it now.</div>
+        <div class="quote-attr"><a href="https://github.com/danmunz/docent/pull/45#issue-3045684862" target="_blank" rel="noopener">community contributor</a></div>
+      </div>
+      <div class="quote-card">
+        <div class="quote-text">This thing is spectacular. I only played with it for a second, but yes, this should make life soo much easier to deal with my Frame TVs.</div>
+        <div class="quote-attr"><a href="https://www.reddit.com/r/TheFrame/comments/1tr869b/comment/ooxo8wh/" target="_blank" rel="noopener">Frame TV owner</a></div>
+      </div>
+      <div class="quote-card">
+        <div class="quote-text">Brilliant, found my next weekend project.</div>
+        <div class="quote-attr"><a href="https://www.theverge.com/tech/940510/docent-is-a-free-open-source-art-gallery-manager-for-your-frame-tv?commentID=c5ab028b-d59e-4246-892f-6f7931747931" target="_blank" rel="noopener">Verge reader</a></div>
+      </div>
+      <div class="quote-card">
+        <div class="quote-text">Anything that is alternative for better than the under reliable Samsung app is a godsend!</div>
+        <div class="quote-attr"><a href="https://www.reddit.com/r/TheFrame/comments/1tr869b/comment/ooqlqtg/" target="_blank" rel="noopener">Frame TV owner</a></div>
+      </div>
+      <div class="quote-card">
+        <div class="quote-text">I have been thinking about creating something like this for a long time, so happy to see how you have done it!</div>
+        <div class="quote-attr">via email</div>
+      </div>
+      <div class="quote-card">
+        <div class="quote-text">It's great to see more of these kind of projects becoming available. Great work!</div>
+        <div class="quote-attr"><a href="https://www.reddit.com/r/TheFrame/comments/1tr869b/comment/oor454v/" target="_blank" rel="noopener">Frame TV owner</a></div>
+      </div>
+      <div class="quote-card">
+        <div class="quote-text">I love this kind of contributions in this community.</div>
+        <div class="quote-attr"><a href="https://www.reddit.com/r/TheFrame/comments/1tr869b/comment/oomlp4w/" target="_blank" rel="noopener">r/TheFrame member</a></div>
+      </div>
+    </div>
+    <div class="quotes-nav reveal">
+      <button onclick="document.getElementById('quotesTrack').scrollBy({left:-424,behavior:'smooth'})" aria-label="Previous quote">&#8592;</button>
+      <button onclick="document.getElementById('quotesTrack').scrollBy({left:424,behavior:'smooth'})" aria-label="Next quote">&#8594;</button>
     </div>
   </div>
 </section>
