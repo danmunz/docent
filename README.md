@@ -7,6 +7,14 @@ Send any image to your Samsung Frame TV with one click.
 ![Docker](https://img.shields.io/badge/docker-supported-blue?logo=docker)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-☕-6f888d?style=flat-square)](https://buymeacoffee.com/danmunz)
 
+### What people are saying about Docent
+
+> _"Docent finally made this click for me. In ~7 years I've never gotten images onto my Frame this easily."_ — community contributor
+>
+> _"This thing is spectacular... this should make life soo much easier to deal with my Frame TVs."_ — Frame TV owner
+>
+> _"Brilliant, found my next weekend project."_ — [The Verge](https://www.theverge.com/tech/940510/docent-is-a-free-open-source-art-gallery-manager-for-your-frame-tv)
+
 Docent is a local web app that puts art on your TV. Drop an image in, press **"Display on Frame,"** and it appears on your screen — no Samsung app, no USB drive, no cloud upload. It also manages your full gallery with a museum-quality interface: browse, organize into collections, crop to 16:9, and swap what's showing anytime. Add AI art identification, weather-aware recommendations, and Google Drive import.
 
 <p align="center">
