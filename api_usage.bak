@@ -1,0 +1,33 @@
+{
+  "monthly": {
+    "2026-05": {
+      "input_tokens": 76331,
+      "output_tokens": 33290,
+      "calls": 113,
+      "by_model": {
+        "claude-sonnet-4-20250514": {
+          "input_tokens": 75752,
+          "output_tokens": 33161,
+          "calls": 112
+        },
+        "gpt-4.1": {
+          "input_tokens": 579,
+          "output_tokens": 129,
+          "calls": 1
+        }
+      }
+    },
+    "2026-06": {
+      "input_tokens": 39504,
+      "output_tokens": 966,
+      "calls": 11,
+      "by_model": {
+        "claude-sonnet-4-20250514": {
+          "input_tokens": 39504,
+          "output_tokens": 966,
+          "calls": 11
+        }
+      }
+    }
+  }
+}

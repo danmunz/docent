@@ -955,6 +955,21 @@
     opacity: 0.7;
     white-space: nowrap;
   }
+  .thumb-retry-all {
+    font-size: 12px;
+    padding: 4px 12px;
+    border: 1px solid var(--accent);
+    background: var(--color-gallery-white);
+    color: var(--accent);
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+  }
+  .thumb-retry-all:hover {
+    background: var(--accent);
+    color: var(--color-gallery-white);
+  }
 
   /* Loading spinner */
   .spinner {
@@ -1957,7 +1972,8 @@
   <div class="thumb-progress" id="thumbProgress">
     <span class="thumb-progress-text" id="thumbProgressText">Loading thumbnails…</span>
     <div class="thumb-progress-bar"><div class="thumb-progress-fill" id="thumbProgressFill"></div></div>
-    <span class="thumb-progress-hint">Loading from TV — may take a minute for large collections</span>
+    <span class="thumb-progress-hint" id="thumbProgressHint">Loading from TV — may take a minute for large collections</span>
+    <button class="thumb-retry-all" id="thumbRetryAll" style="display:none" onclick="retryAllThumbnails()">Retry All</button>
   </div>
   <div class="toast" id="toast"></div>
 
@@ -2853,6 +2869,8 @@
       const bar = document.getElementById('thumbProgress');
       const fill = document.getElementById('thumbProgressFill');
       const text = document.getElementById('thumbProgressText');
+      const hint = document.getElementById('thumbProgressHint');
+      const retryBtn = document.getElementById('thumbRetryAll');
       const total = _thumbTrackedIds.size;
       const loaded = _thumbResolvedIds.size;
       if (!_thumbFallbackSeen || total === 0) {
@@ -2864,7 +2882,17 @@
       fill.style.width = pct + '%';
       text.textContent = `Loading thumbnails: ${loaded} / ${total}`;
       if (loaded >= total) {
-        setTimeout(() => bar.classList.remove('visible'), 2000);
+        // Count how many ended up as errors
+        const errorCount = document.querySelectorAll('.thumb.load-error').length;
+        if (errorCount > 0) {
+          text.textContent = `${errorCount} thumbnail${errorCount !== 1 ? 's' : ''} failed`;
+          hint.style.display = 'none';
+          retryBtn.style.display = '';
+        } else {
+          retryBtn.style.display = 'none';
+          hint.style.display = '';
+          setTimeout(() => bar.classList.remove('visible'), 2000);
+        }
       }
     }
 
@@ -3004,6 +3032,34 @@
         loadThumbnailBatch([cid]);
       };
       el.replaceWith(div);
+    }
+
+    function retryAllThumbnails() {
+      const errorEls = document.querySelectorAll('.thumb.load-error');
+      const ids = [];
+      errorEls.forEach(el => {
+        const cid = el.id?.replace('thumb-', '');
+        if (cid) {
+          el.className = 'thumb loading';
+          el.textContent = 'Loading...';
+          el.onclick = null;
+          ids.push(cid);
+          // Remove from resolved so progress bar re-tracks them
+          _thumbResolvedIds.delete(cid);
+        }
+      });
+      if (ids.length) {
+        const btn = document.getElementById('thumbRetryAll');
+        btn.style.display = 'none';
+        const hint = document.getElementById('thumbProgressHint');
+        hint.style.display = '';
+        _updateThumbProgress();
+        // Reset circuit breaker and kick server-side prefetch
+        api('/thumbnails/retry', { method: 'POST', body: { content_ids: ids } })
+          .catch(() => {});
+        // Client-side retry polls for cached results
+        loadThumbnailBatch(ids);
+      }
     }
 
     async function loadThumbnails() {
