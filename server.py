@@ -88,6 +88,8 @@ _current_id_cache: str | None = None
 _tv_lock = asyncio.Lock()
 _tv_conn: SamsungTVWS | None = None
 _tv_art = None
+_tv_last_used: float = 0
+TV_CONN_MAX_IDLE = 30  # seconds — proactively reconnect after this idle time
 _meta_lock = asyncio.Lock()
 _collections_lock = asyncio.Lock()
 _config_lock = asyncio.Lock()
@@ -122,15 +124,24 @@ def art_connection(tv: SamsungTVWS):
 def _ensure_tv_connection():
     """Return the current art connection, creating one if needed.
 
-    Must only be called while ``_tv_lock`` is held.
+    Must only be called while ``_tv_lock`` is held.  If the connection
+    has been idle longer than ``TV_CONN_MAX_IDLE`` seconds it is
+    proactively closed and reopened — Samsung Frame WebSockets go
+    stale after ~30-60 s of inactivity, leading to BrokenPipeError.
     """
-    global _tv_conn, _tv_art
+    global _tv_conn, _tv_art, _tv_last_used
     if _tv_art is not None:
-        return _tv_art
+        idle = time.monotonic() - _tv_last_used
+        if idle > TV_CONN_MAX_IDLE:
+            log.debug("TV connection idle for %.0fs — reconnecting", idle)
+            _close_tv_connection()
+        else:
+            return _tv_art
     tv = get_tv()
     art = art_connection(tv)
     _tv_conn = tv
     _tv_art = art
+    _tv_last_used = time.monotonic()
     log.debug("TV connection opened")
     return art
 
@@ -206,7 +217,10 @@ async def _tv_op(fn, *, attempts: int = TV_CONNECT_ATTEMPTS, timeout: float | No
     for attempt in range(attempts):
         async with _tv_lock:
             try:
-                return await asyncio.wait_for(asyncio.to_thread(_job), timeout=timeout)
+                result = await asyncio.wait_for(asyncio.to_thread(_job), timeout=timeout)
+                global _tv_last_used
+                _tv_last_used = time.monotonic()
+                return result
             except ResponseError:
                 raise  # TV answered with a definitive error — retrying won't help
             except Exception as e:
