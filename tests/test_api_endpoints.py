@@ -447,11 +447,13 @@ class TestThumbnailBatchFallback:
         assert "ART001" in data["thumbnails"]
         assert data["missing"] == []
 
-    async def test_batch_failure_falls_back_to_background_prefetch(self, client, mock_tv, tmp_data_dir):
+    async def test_batch_failure_falls_back_to_background_prefetch(self, client, mock_tv, tmp_data_dir, monkeypatch):
         """When get_thumbnail_list fails, response returns immediately with
         fallback=True and missing IDs; a background task prefetches them."""
         mock_tv.get_thumbnail_list.side_effect = Exception("socket closed")
         mock_tv.get_thumbnail.return_value = b"\xff\xd8\xff\xe0thumb-individual"
+        # Speed up inter-fetch delays in tests
+        monkeypatch.setattr(server, "_BATCH_THUMB_COOLDOWN", 0.1)
 
         resp = await client.post("/api/thumbnails", json={"content_ids": ["ART001", "ART002"]})
         assert resp.status_code == 200
@@ -463,7 +465,7 @@ class TestThumbnailBatchFallback:
 
         # Poll for background prefetch to complete (avoids fixed-sleep flakiness)
         import asyncio
-        for _ in range(20):
+        for _ in range(40):
             await asyncio.sleep(0.1)
             resp2 = await client.post("/api/thumbnails", json={"content_ids": ["ART001", "ART002"]})
             data2 = resp2.json()
@@ -473,10 +475,12 @@ class TestThumbnailBatchFallback:
         assert "ART002" in data2["thumbnails"]
         assert data2["missing"] == []
 
-    async def test_partial_fallback_results(self, client, mock_tv, tmp_data_dir):
+    async def test_partial_fallback_results(self, client, mock_tv, tmp_data_dir, monkeypatch):
         """When batch fails, missing IDs are prefetched in background.
         IDs that the TV can't fetch remain missing even after retry."""
         mock_tv.get_thumbnail_list.side_effect = Exception("socket closed")
+        # Speed up inter-fetch delays in tests
+        monkeypatch.setattr(server, "_BATCH_THUMB_COOLDOWN", 0.1)
 
         def _get_thumb(cid):
             if cid == "ART001":
@@ -493,7 +497,7 @@ class TestThumbnailBatchFallback:
 
         # Poll for background prefetch to complete (avoids fixed-sleep flakiness)
         import asyncio
-        for _ in range(20):
+        for _ in range(40):
             await asyncio.sleep(0.1)
             resp2 = await client.post("/api/thumbnails", json={"content_ids": ["ART001", "ART002"]})
             data2 = resp2.json()

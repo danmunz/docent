@@ -80,6 +80,9 @@ class TestIndividualFallbackBehavior:
         """Response returns fast with all IDs as missing; background task
         fetches them individually and caches to disk."""
         monkeypatch.setattr(server, "TV_RETRY_DELAY", 0.01)
+        monkeypatch.setattr(server, "_BATCH_THUMB_COOLDOWN", 0.1)
+        monkeypatch.setattr(server, "_PREFETCH_INTER_DELAY", 0.01)
+        monkeypatch.setattr(server, "_PREFETCH_BACKOFF", 0.01)
         mock_tv.get_thumbnail_list.side_effect = ConnectionFailure({"reason": "socket closed"})
         mock_tv.get_thumbnail.return_value = bytearray(b"\xff\xd8\xff\xe0thumb")
 
@@ -97,22 +100,28 @@ class TestIndividualFallbackBehavior:
         # No thumbnails inline (they're being prefetched)
         assert len(data["thumbnails"]) == 0
 
-        # Give background task time to run
-        await asyncio.sleep(0.5)
+        # Poll for background task to finish (has 0.5s inter-fetch delays)
+        for _ in range(150):
+            await asyncio.sleep(0.1)
+            if not server._thumb_prefetch_running:
+                break
 
         # Now the background task should have cached them
         resp2 = await client.post("/api/thumbnails", json={"content_ids": ids})
         data2 = resp2.json()
         assert len(data2["thumbnails"]) == 20
         assert data2["missing"] == []
-        # Background task made 20 individual get_thumbnail calls
+        # Background task made 20 individual get_thumbnail calls (1 attempt each)
         assert mock_tv.get_thumbnail.call_count == 20
 
     async def test_fallback_cascading_failures(self, client, mock_tv, tmp_data_dir, monkeypatch):
         """When the TV is unstable, background prefetch caches what it can
-        and drops the rest.
+        and aborts after consecutive failures.
         """
         monkeypatch.setattr(server, "TV_RETRY_DELAY", 0.01)
+        monkeypatch.setattr(server, "_BATCH_THUMB_COOLDOWN", 0.1)
+        monkeypatch.setattr(server, "_PREFETCH_INTER_DELAY", 0.01)
+        monkeypatch.setattr(server, "_PREFETCH_BACKOFF", 0.01)
         mock_tv.get_thumbnail_list.side_effect = ConnectionFailure({"reason": "socket closed"})
         call_count = 0
         def flaky_get_thumbnail(cid):
@@ -131,10 +140,14 @@ class TestIndividualFallbackBehavior:
         # Immediate response has all 10 as missing
         assert len(data["missing"]) == 10
 
-        # Give background task time to finish
-        await asyncio.sleep(0.5)
+        # Poll for background task to finish
+        for _ in range(200):
+            await asyncio.sleep(0.1)
+            if not server._thumb_prefetch_running:
+                break
 
-        # Retry — only 3 were cached successfully
+        # Retry — only 3 were cached successfully; prefetch aborted after
+        # 5 consecutive failures (calls 4-8), leaving IDs 8-9 unattempted.
         resp2 = await client.post("/api/thumbnails", json={"content_ids": ids})
         data2 = resp2.json()
         assert len(data2["thumbnails"]) == 3
@@ -282,10 +295,14 @@ class TestLargeCatalogScenario:
         If ALL fail and trigger individual fallback, that's up to
         524 individual _tv_op calls, each with 3 attempts = 1,572 connection attempts.
 
-        With the background prefetch fix, the response returns immediately
-        and the individual calls happen asynchronously.
+        With the throttled background prefetch fix, the response returns
+        immediately, the prefetch uses single attempts, and it aborts
+        after 5 consecutive failures to avoid hammering the TV.
         """
         monkeypatch.setattr(server, "TV_RETRY_DELAY", 0.001)
+        monkeypatch.setattr(server, "_BATCH_THUMB_COOLDOWN", 0.1)
+        monkeypatch.setattr(server, "_PREFETCH_INTER_DELAY", 0.01)
+        monkeypatch.setattr(server, "_PREFETCH_BACKOFF", 0.01)
 
         batch_call_count = 0
 
@@ -309,12 +326,16 @@ class TestLargeCatalogScenario:
         # Response returns fast — no inline individual calls
         assert elapsed < 2.0, f"Response took {elapsed:.2f}s, should be bounded"
 
-        # Give background task time to attempt individual calls
-        await asyncio.sleep(0.5)
+        # Give background task time to attempt individual calls and abort
+        for _ in range(50):
+            await asyncio.sleep(0.2)
+            if not server._thumb_prefetch_running:
+                break
 
-        # Background task attempted individual calls (20 IDs × 3 attempts each)
-        assert mock_tv.get_thumbnail.call_count >= 20, (
-            f"Expected at least 20 background individual calls, got {mock_tv.get_thumbnail.call_count}"
+        # Background task aborted after 5 consecutive failures (not all 20)
+        assert mock_tv.get_thumbnail.call_count == 5, (
+            f"Expected exactly 5 background individual calls before abort, "
+            f"got {mock_tv.get_thumbnail.call_count}"
         )
 
     async def test_cached_thumbnails_skip_tv_entirely(self, client, mock_tv, tmp_data_dir):
@@ -421,6 +442,9 @@ class TestClientTimeoutRace:
         are available on retry. This eliminates the timeout race entirely.
         """
         monkeypatch.setattr(server, "TV_RETRY_DELAY", 0.001)
+        monkeypatch.setattr(server, "_BATCH_THUMB_COOLDOWN", 0.1)
+        monkeypatch.setattr(server, "_PREFETCH_INTER_DELAY", 0.01)
+        monkeypatch.setattr(server, "_PREFETCH_BACKOFF", 0.01)
         mock_tv.get_thumbnail_list.side_effect = ConnectionFailure({"reason": "socket closed"})
 
         call_idx = 0
@@ -443,8 +467,11 @@ class TestClientTimeoutRace:
         # Immediate response has all as missing (prefetch in background)
         assert len(data["missing"]) == 10
 
-        # Give background task time to complete
-        await asyncio.sleep(0.5)
+        # Poll for background task to finish
+        for _ in range(100):
+            await asyncio.sleep(0.1)
+            if not server._thumb_prefetch_running:
+                break
 
         # Background task cached 5 thumbnails to disk
         cached_count = sum(
