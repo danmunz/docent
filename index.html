@@ -2865,8 +2865,10 @@
     async function loadThumbnailBatch(ids, attempt = 0) {
       if (!ids.length) return;
       if (attempt === 0) {
-        const newIds = ids.filter(id => !thumbCache[id]);
-        _thumbTotal += newIds.length;
+        // Only count genuinely new IDs on first attempt (retries don't add to total)
+        for (const id of ids) {
+          if (!thumbCache[id]) _thumbTotal++;
+        }
       }
       const BATCH = 20;
       const TIMEOUT_MS = 30000;
@@ -2882,28 +2884,27 @@
           });
           clearTimeout(timer);
           if (data.fallback) _thumbFallbackSeen = true;
-          let batchLoaded = 0;
           for (const [name, b64] of Object.entries(data.thumbnails)) {
             const dataUrl = 'data:image/jpeg;base64,' + b64;
             const cid = batch.find(id => name.startsWith(id) || name === id);
             if (cid && !thumbCache[cid]) {
               thumbCache[cid] = dataUrl;
               replaceThumbEl(cid, dataUrl);
-              batchLoaded++;
+              _thumbLoaded++;
             }
           }
-          _thumbLoaded += batchLoaded;
           if (_thumbFallbackSeen) _updateThumbProgress();
           // Retry missing IDs returned by the server
           const stillMissing = (data.missing || []).filter(id => !thumbCache[id]);
           if (stillMissing.length && attempt < 2) {
             setTimeout(() => loadThumbnailBatch(stillMissing, attempt + 1), 2000 * (attempt + 1));
           } else {
-            stillMissing.forEach(id => showThumbError(id));
-            if (stillMissing.length) {
-              _thumbLoaded += stillMissing.length;
-              if (_thumbFallbackSeen) _updateThumbProgress();
+            // Final attempt exhausted — count failures as resolved for progress
+            for (const id of stillMissing) {
+              showThumbError(id);
+              _thumbLoaded++;
             }
+            if (stillMissing.length && _thumbFallbackSeen) _updateThumbProgress();
           }
         } catch {
           clearTimeout(timer);
@@ -2911,10 +2912,13 @@
             const retryIds = batch.filter(id => !thumbCache[id]);
             setTimeout(() => loadThumbnailBatch(retryIds, attempt + 1), 2000 * (attempt + 1));
           } else {
+            // Final attempt exhausted — count failures as resolved for progress
             for (const id of batch) {
-              if (!thumbCache[id]) showThumbError(id);
+              if (!thumbCache[id]) {
+                showThumbError(id);
+                _thumbLoaded++;
+              }
             }
-            _thumbLoaded += batch.filter(id => !thumbCache[id]).length;
             if (_thumbFallbackSeen) _updateThumbProgress();
           }
         }
