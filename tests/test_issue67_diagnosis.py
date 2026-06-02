@@ -6,6 +6,7 @@ failures after PRs #68 and #69 were merged.
 from __future__ import annotations
 
 import asyncio
+import threading
 import time
 from unittest.mock import MagicMock, call
 
@@ -164,10 +165,10 @@ class TestTvOpTimeoutBehavior:
         monkeypatch.setattr(server, "_close_tv_connection", tracking_close)
 
         # Simulate a call that hangs (like a stuck D2D recv)
+        cancel = threading.Event()
         def hanging_fn(art):
-            import threading
-            # Simulate the D2D socket blocking on recv for a long time
-            time.sleep(10)
+            # Block until cancelled — avoids a fixed sleep that stalls the suite
+            cancel.wait(timeout=2)
             return {}
 
         ensure_called = []
@@ -181,9 +182,8 @@ class TestTvOpTimeoutBehavior:
 
         # _close_tv_connection WAS called (good)
         assert len(close_calls) == 1
-        # But the thread running hanging_fn is still alive — it will keep
-        # the D2D socket open for 10 more seconds. We can't test this
-        # directly but we confirm the cleanup path runs.
+        # Release the worker thread so it doesn't linger after the test
+        cancel.set()
 
 
 # ---------------------------------------------------------------------------

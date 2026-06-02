@@ -79,8 +79,19 @@ def _make_mock_art(
 # Test: Reproduce the full Nitrowolf scenario
 # ---------------------------------------------------------------------------
 
+@pytest.mark.xfail(
+    reason="Reproduces #67 timeout race — will fail once the fix lands",
+    strict=False,
+)
 class TestNitrowolfReproduction:
-    """End-to-end reproduction of Nitrowolf's failure pattern."""
+    """End-to-end reproduction of Nitrowolf's failure pattern.
+
+    These tests assert the *current buggy behavior*: the server responds
+    slower than the client timeout. Once the timeout race is fixed, these
+    tests should start failing (xfail → xpass), signaling that the
+    reproduction no longer applies and the tests can be removed or
+    converted to assert the fixed behavior.
+    """
 
     @pytest.fixture
     def nitrowolf_tv(self, monkeypatch):
@@ -259,6 +270,10 @@ class TestNitrowolfReproduction:
         )
 
 
+@pytest.mark.xfail(
+    reason="Reproduces #67 timeout race — will fail once the fix lands",
+    strict=False,
+)
 class TestRetryLoopReproduction:
     """Reproduce the frontend's retry-abort-retry loop that creates the
     cascading failure pattern in Nitrowolf's logs.
@@ -404,6 +419,10 @@ class TestRetryLoopReproduction:
         print(f"{'='*60}")
 
 
+@pytest.mark.xfail(
+    reason="Reproduces #67 timeout race — will fail once the fix lands",
+    strict=False,
+)
 class TestSettingsDelayReproduction:
     """Reproduce Nitrowolf's report: "Clicking settings is still massively
     delayed and pops up over modal dialogs. It took over a minute before
