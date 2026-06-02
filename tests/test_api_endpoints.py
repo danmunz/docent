@@ -348,7 +348,7 @@ class TestHealth:
     async def test_health_reports_corrupt_file(self, client, tmp_data_dir):
         (tmp_data_dir / "collections.json").write_text("{broken!!!")
         resp = await client.get("/health")
-        assert resp.status_code == 200
+        assert resp.status_code == 503
         data = resp.json()
         assert data["data_files"]["collections"] == "corrupt"
         assert data["status"] == "error"

@@ -380,7 +380,7 @@ async def health():
     has_errors = not dir_writable or "corrupt" in files.values()
     status = "error" if has_errors else ("degraded" if not TV_IP else "ok")
 
-    return {
+    payload = {
         "status": status,
         "version": "1.0.1",
         "tv_ip": TV_IP,
@@ -388,6 +388,9 @@ async def health():
         "data_files": files,
         "uptime_seconds": round(time.time() - _startup_time),
     }
+    if has_errors:
+        return JSONResponse(payload, status_code=503)
+    return payload
 
 
 # --- TV info ---
