@@ -345,6 +345,15 @@ async def lifespan(app: FastAPI):
         log.warning("DOCENT_TV_IP is not set — copy .env.example to .env and add your TV's IP address")
     else:
         log.info("Docent starting — TV at %s:%s", TV_IP, TV_PORT)
+
+    # Kick off background thumbnail prefetch after startup so the disk
+    # cache warms up before a user opens the browser.  This is the key
+    # fix for large catalogs with unreliable TV connections: the cache
+    # fills gradually in the background instead of being demanded by a
+    # page load.
+    if TV_IP:
+        asyncio.create_task(_startup_prefetch())
+
     yield
 
 
@@ -487,45 +496,61 @@ _BATCH_THUMB_COOLDOWN = 60  # seconds
 _PREFETCH_INTER_DELAY = 0.5  # seconds between successful fetches
 _PREFETCH_BACKOFF = 2  # multiplier for consecutive failure delays
 _PREFETCH_MAX_FAILURES = 5  # abort after this many consecutive failures
+_PREFETCH_RETRY_COOLDOWN = 300  # seconds before auto-retrying a failed prefetch
+_PREFETCH_TIMEOUT = 5  # shorter timeout for background fetches to reduce lock contention
 
 
-async def _prefetch_thumbnails(content_ids: list[str]) -> None:
+async def _prefetch_thumbnails(content_ids: list[str], *, source: str = "fallback") -> None:
     """Fetch thumbnails individually in the background and cache to disk.
 
     Uses single attempts with a short timeout to fail fast, adds a delay
     between calls to avoid overwhelming the TV, and aborts after several
     consecutive failures (the TV is likely unreachable).
+
+    If this is a startup prefetch and it aborts early, it schedules a retry
+    after ``_PREFETCH_RETRY_COOLDOWN`` seconds so the cache can fill
+    gradually even with an intermittently unreachable TV.
     """
     global _thumb_prefetch_running
-    _thumb_prefetch_running = True
+    # Callers set _thumb_prefetch_running = True BEFORE create_task()
+    # to prevent races.  We only need the global decl for the finally block.
     consecutive_failures = 0
+    fetched = 0
+    failed_ids: list[str] = []  # IDs that failed (included in retries)
+    remaining_ids: list[str] = []  # unattempted + failed IDs for retry
     try:
-        for cid in content_ids:
+        for i, cid in enumerate(content_ids):
             if consecutive_failures >= _PREFETCH_MAX_FAILURES:
+                unattempted = content_ids[i:]
+                remaining_ids = failed_ids + unattempted
                 log.warning(
                     "Background prefetch aborting after %d consecutive failures "
-                    "(%d IDs remaining)",
+                    "(%d IDs remaining, %d failed + %d unattempted)",
                     consecutive_failures,
-                    len(content_ids) - content_ids.index(cid),
+                    len(remaining_ids),
+                    len(failed_ids),
+                    len(unattempted),
                 )
                 # Release remaining IDs from the in-progress set
-                for remaining in content_ids[content_ids.index(cid):]:
+                for remaining in remaining_ids:
                     _thumb_prefetch_in_progress.discard(remaining)
                 break
             try:
                 data = await _tv_op(
                     lambda art, _cid=cid: art.get_thumbnail(_cid),
                     attempts=1,
-                    timeout=TV_TIMEOUT,
+                    timeout=_PREFETCH_TIMEOUT,
                 )
                 if data:
                     _save_thumbnail(cid, data)
                     log.debug("Background prefetch cached thumbnail for %s", cid)
+                    fetched += 1
                 consecutive_failures = 0
                 # Brief pause between successful fetches to be gentle on the TV
                 await asyncio.sleep(_PREFETCH_INTER_DELAY)
             except Exception:
                 consecutive_failures += 1
+                failed_ids.append(cid)
                 log.debug("Background prefetch failed for %s (%d consecutive)", cid, consecutive_failures)
                 # Back off longer after failures
                 await asyncio.sleep(_PREFETCH_BACKOFF * consecutive_failures)
@@ -533,10 +558,72 @@ async def _prefetch_thumbnails(content_ids: list[str]) -> None:
                 _thumb_prefetch_in_progress.discard(cid)
     finally:
         _thumb_prefetch_running = False
+        if fetched:
+            log.info("Background prefetch completed: %d thumbnails cached", fetched)
+
+    # If we aborted early and there are remaining IDs, schedule a retry
+    # so the cache fills gradually across multiple cycles.
+    if remaining_ids and source == "startup":
+        log.info(
+            "Scheduling prefetch retry in %ds for %d remaining thumbnails",
+            _PREFETCH_RETRY_COOLDOWN,
+            len(remaining_ids),
+        )
+        await asyncio.sleep(_PREFETCH_RETRY_COOLDOWN)
+        # Re-check which IDs still need fetching (some may have been
+        # fetched via the web UI in the meantime).
+        still_missing = [
+            cid for cid in remaining_ids
+            if not _get_cached_thumbnail(cid)
+        ]
+        if still_missing and not _thumb_prefetch_running:
+            _thumb_prefetch_running = True  # set BEFORE create_task to prevent races
+            _thumb_prefetch_in_progress.update(still_missing)
+            asyncio.create_task(_prefetch_thumbnails(still_missing, source="startup"))
+
+
+async def _startup_prefetch() -> None:
+    """Fetch the artwork list and pre-warm the thumbnail cache on boot.
+
+    Waits a few seconds for the TV to settle, then fetches the artwork
+    list and starts a background prefetch for any uncached thumbnails.
+    This decouples cache warming from page loads so that by the time a
+    user opens the browser, most thumbnails are already on disk.
+    """
+    await asyncio.sleep(5)  # let the TV's WebSocket server settle
+    try:
+        result = await _tv_op(_refresh_art_cache)
+        items = result.get("items", [])
+    except Exception as e:
+        log.warning("Startup prefetch: could not fetch artwork list: %s", e)
+        log.info(
+            "Scheduling startup prefetch retry in %ds",
+            _PREFETCH_RETRY_COOLDOWN,
+        )
+        await asyncio.sleep(_PREFETCH_RETRY_COOLDOWN)
+        asyncio.create_task(_startup_prefetch())
+        return
+
+    all_ids = [item["content_id"] for item in items]
+    uncached = [cid for cid in all_ids if not _get_cached_thumbnail(cid)]
+    if not uncached:
+        log.info("Startup prefetch: all %d thumbnails already cached", len(all_ids))
+        return
+
+    log.info(
+        "Startup prefetch: %d of %d thumbnails uncached, starting background fetch",
+        len(uncached),
+        len(all_ids),
+    )
+    global _thumb_prefetch_running
+    _thumb_prefetch_running = True  # set before calling to match create_task pattern
+    _thumb_prefetch_in_progress.update(uncached)
+    await _prefetch_thumbnails(uncached, source="startup")
 
 
 @app.post("/api/thumbnails")
 async def get_thumbnails_batch(body: dict):
+    global _thumb_prefetch_running
     content_ids = body.get("content_ids", [])
     if not content_ids:
         return {"thumbnails": {}, "missing": [], "fallback": False}
@@ -565,7 +652,10 @@ async def get_thumbnails_batch(body: dict):
             fallback = True
         else:
             try:
-                result = await _tv_op(lambda art: art.get_thumbnail_list(missing))
+                result = await _tv_op(
+                    lambda art: art.get_thumbnail_list(missing),
+                    attempts=1,
+                )
                 for name, data in result.items():
                     for cid in missing:
                         if name.startswith(cid):
@@ -586,11 +676,37 @@ async def get_thumbnails_batch(body: dict):
                 if cid not in encoded and cid not in _thumb_prefetch_in_progress
             ]
             if to_prefetch and not _thumb_prefetch_running:
+                _thumb_prefetch_running = True  # set BEFORE create_task to prevent races
                 _thumb_prefetch_in_progress.update(to_prefetch)
                 asyncio.create_task(_prefetch_thumbnails(to_prefetch))
 
     still_missing = [c for c in missing if c not in encoded]
     return {"thumbnails": encoded, "missing": still_missing, "fallback": fallback}
+
+
+@app.post("/api/thumbnails/retry")
+async def retry_thumbnails(body: dict):
+    """Reset the circuit breaker and trigger a fresh prefetch.
+
+    Called by the frontend's "Retry All" button so the server tries the
+    TV again instead of serving stale circuit-breaker results.
+    """
+    global _batch_thumb_last_failure, _thumb_prefetch_running
+    _batch_thumb_last_failure = 0
+
+    content_ids = body.get("content_ids", [])
+    if content_ids:
+        _validate_content_ids(content_ids)
+        to_prefetch = [
+            cid for cid in content_ids
+            if not _get_cached_thumbnail(cid) and cid not in _thumb_prefetch_in_progress
+        ]
+        if to_prefetch and not _thumb_prefetch_running:
+            _thumb_prefetch_running = True  # set BEFORE create_task to prevent races
+            _thumb_prefetch_in_progress.update(to_prefetch)
+            asyncio.create_task(_prefetch_thumbnails(to_prefetch))
+            return {"scheduled": len(to_prefetch)}
+    return {"scheduled": 0}
 
 
 # --- Select / display ---

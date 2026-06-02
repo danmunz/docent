@@ -520,3 +520,21 @@ class TestThumbnailBatchFallback:
         assert "ART001" in data["thumbnails"]
         mock_tv.get_thumbnail_list.assert_not_called()
         mock_tv.get_thumbnail.assert_not_called()
+
+    async def test_retry_endpoint_resets_circuit_breaker(self, client, mock_tv, tmp_data_dir, monkeypatch):
+        """POST /api/thumbnails/retry resets the circuit breaker and schedules prefetch."""
+        import time
+        # Simulate a recent failure so circuit breaker is tripped
+        server._batch_thumb_last_failure = time.monotonic()
+        monkeypatch.setattr(server, "_BATCH_THUMB_COOLDOWN", 60)
+
+        # Confirm circuit breaker is active (would skip batch)
+        assert time.monotonic() - server._batch_thumb_last_failure < 60
+
+        mock_tv.get_thumbnail.return_value = b"\xff\xd8\xff\xe0thumb"
+        resp = await client.post("/api/thumbnails/retry", json={"content_ids": ["ART001"]})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["scheduled"] == 1
+        # Circuit breaker should be reset
+        assert server._batch_thumb_last_failure == 0
