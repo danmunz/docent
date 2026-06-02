@@ -329,3 +329,31 @@ class TestErrors:
         thumb.write_bytes(b"\xff\xd8\xff\xe0fake-jpeg")
         resp = await client.post("/api/ai/analyze/ART099")
         assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Health endpoint (#19)
+# ---------------------------------------------------------------------------
+
+class TestHealth:
+    async def test_health_returns_ok(self, client):
+        resp = await client.get("/health")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] in ("ok", "degraded")
+        assert "version" in data
+        assert "uptime_seconds" in data
+        assert "data_files" in data
+
+    async def test_health_reports_corrupt_file(self, client, tmp_data_dir):
+        (tmp_data_dir / "collections.json").write_text("{broken!!!")
+        resp = await client.get("/health")
+        assert resp.status_code == 503
+        data = resp.json()
+        assert data["data_files"]["collections"] == "corrupt"
+        assert data["status"] == "error"
+
+    async def test_health_reports_missing_files(self, client):
+        resp = await client.get("/health")
+        data = resp.json()
+        assert data["data_files"]["collections"] == "missing"

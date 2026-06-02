@@ -54,6 +54,24 @@ AI_CONFIG_FILE = DATA_DIR / "ai_config.json"
 API_USAGE_FILE = DATA_DIR / "api_usage.json"
 DRIVE_SYNC_FILE = DATA_DIR / "drive_sync.json"
 
+
+def _safe_load_json(path: Path, default_factory) -> dict:
+    """Load a JSON file safely, recovering from corruption."""
+    if not path.exists():
+        return default_factory()
+    try:
+        return json.loads(path.read_text())
+    except (json.JSONDecodeError, ValueError) as exc:
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+        corrupt_path = path.with_suffix(f".corrupt.{ts}")
+        try:
+            import shutil
+            shutil.copy2(path, corrupt_path)
+        except OSError:
+            pass
+        log.error("Corrupted JSON in %s — backed up to %s and reset to default: %s", path.name, corrupt_path.name, exc)
+        return default_factory()
+
 _LOG_LEVEL_NAME = os.environ.get("DOCENT_LOG_LEVEL", "INFO").upper()
 _LOG_LEVEL = logging.getLevelName(_LOG_LEVEL_NAME)
 if not isinstance(_LOG_LEVEL, int):
@@ -68,6 +86,8 @@ log = logging.getLogger("docent")
 _art_cache: list[dict] | None = None
 _current_id_cache: str | None = None
 _tv_lock = asyncio.Lock()
+_tv_conn: SamsungTVWS | None = None
+_tv_art = None
 _meta_lock = asyncio.Lock()
 _collections_lock = asyncio.Lock()
 _config_lock = asyncio.Lock()
@@ -99,6 +119,35 @@ def art_connection(tv: SamsungTVWS):
     return art
 
 
+def _ensure_tv_connection():
+    """Return the current art connection, creating one if needed.
+
+    Must only be called while ``_tv_lock`` is held.
+    """
+    global _tv_conn, _tv_art
+    if _tv_art is not None:
+        return _tv_art
+    tv = get_tv()
+    art = art_connection(tv)
+    _tv_conn = tv
+    _tv_art = art
+    log.debug("TV connection opened")
+    return art
+
+
+def _close_tv_connection():
+    """Close the persistent TV connection if open."""
+    global _tv_conn, _tv_art
+    if _tv_conn is not None:
+        try:
+            _tv_conn.close()
+        except Exception:
+            pass
+        log.debug("TV connection closed")
+    _tv_conn = None
+    _tv_art = None
+
+
 def _wake_tv() -> None:
     """Send a Wake-on-LAN magic packet to the TV (no-op if no MAC configured).
 
@@ -128,16 +177,19 @@ def _wake_tv() -> None:
 async def _tv_op(fn, *, attempts: int = TV_CONNECT_ATTEMPTS, timeout: float | None = None):
     """Run a blocking TV operation off the event loop, reliably.
 
-    Opens a TV/art connection, runs ``fn(art)`` in a worker thread, then
-    closes the connection. Access is serialized by ``_tv_lock`` so only one
-    TV conversation happens at a time (the Frame dislikes concurrent
+    Reuses a persistent TV/art WebSocket connection, running ``fn(art)`` in a
+    worker thread. Access is serialized by ``_tv_lock`` so only one TV
+    conversation happens at a time (the Frame dislikes concurrent
     connections), while the event loop stays free to serve other requests.
 
     Each attempt is bounded by ``timeout`` (default ``TV_TIMEOUT + 8``) so a
     hung connection can never hold the lock forever — it raises and releases.
-    On a connection-type failure we send a Wake-on-LAN packet and retry up to
-    ``attempts`` times. A definitive ``ResponseError`` from the TV (e.g. the
-    matte "-10" rejection) is not retried.
+    On failure the connection is closed (so the next attempt opens a fresh
+    one), a Wake-on-LAN packet is sent, and the lock is **released** during
+    the retry delay so other operations aren't starved.
+
+    A definitive ``ResponseError`` from the TV (e.g. the matte "-10"
+    rejection) is not retried.
 
     Pass ``attempts=1`` for non-idempotent calls like uploads (so a lost
     response can't trigger a duplicate), with a larger ``timeout`` to allow
@@ -147,31 +199,29 @@ async def _tv_op(fn, *, attempts: int = TV_CONNECT_ATTEMPTS, timeout: float | No
         timeout = TV_TIMEOUT + 8
 
     def _job():
-        tv = get_tv()
-        art = art_connection(tv)
-        try:
-            return fn(art)
-        finally:
-            tv.close()
+        art = _ensure_tv_connection()
+        return fn(art)
 
-    async with _tv_lock:
-        last_exc: Exception | None = None
-        for attempt in range(attempts):
+    last_exc: Exception | None = None
+    for attempt in range(attempts):
+        async with _tv_lock:
             try:
                 return await asyncio.wait_for(asyncio.to_thread(_job), timeout=timeout)
             except ResponseError:
                 raise  # TV answered with a definitive error — retrying won't help
             except Exception as e:
                 last_exc = e
-                if attempt + 1 < attempts:
-                    log.info(
-                        "TV op attempt %d/%d failed (%s) — waking TV and retrying",
-                        attempt + 1, attempts, type(e).__name__,
-                    )
-                    _wake_tv()
-                    await asyncio.sleep(TV_RETRY_DELAY)
-        assert last_exc is not None
-        raise last_exc
+                _close_tv_connection()
+        # Lock released — other operations can proceed during retry delay
+        if attempt + 1 < attempts:
+            log.info(
+                "TV op attempt %d/%d failed (%s) — waking TV and retrying",
+                attempt + 1, attempts, type(last_exc).__name__,
+            )
+            _wake_tv()
+            await asyncio.sleep(TV_RETRY_DELAY)
+    assert last_exc is not None
+    raise last_exc
 
 
 def _save_thumbnail(content_id: str, data: bytes | bytearray) -> None:
@@ -218,91 +268,41 @@ def _cached_content_ids() -> set[str]:
     return {p.stem for p in THUMB_DIR.glob("*.jpg")}
 
 
-def _fetch_thumbnails_sync(content_ids: list[str]) -> None:
-    """Fetch thumbnails from TV for the given IDs (best-effort, no errors raised)."""
-    if not content_ids:
-        return
-    try:
-        tv = get_tv()
-        art = art_connection(tv)
-        try:
-            BATCH = 10
-            for i in range(0, len(content_ids), BATCH):
-                batch = content_ids[i : i + BATCH]
-                try:
-                    result = art.get_thumbnail_list(batch)
-                    for name, thumb_data in result.items():
-                        for cid in batch:
-                            if name.startswith(cid):
-                                _save_thumbnail(cid, thumb_data)
-                                break
-                except Exception as e:
-                    log.debug("Batch thumbnail fetch failed, falling back to individual: %s", e)
-                    for cid in batch:
-                        try:
-                            thumb_data = art.get_thumbnail(cid)
-                            if thumb_data:
-                                _save_thumbnail(cid, thumb_data)
-                        except Exception:
-                            log.debug("Could not fetch thumbnail for %s", cid)
-        finally:
-            tv.close()
-    except Exception as e:
-        log.warning("Thumbnail pre-fetch failed: %s", e)
-
-
-def _refresh_art_cache_sync(force: bool = False) -> dict:
+def _refresh_art_cache(art) -> dict:
+    """Refresh the art cache from the TV.  Called inside ``_tv_op``."""
     global _art_cache, _current_id_cache
-
-    if not force and _art_cache is not None:
-        return {"items": _art_cache, "current_id": _current_id_cache}
 
     old_ids = {item["content_id"] for item in (_art_cache or [])}
     cached_on_disk = _cached_content_ids()
 
-    try:
-        tv = get_tv()
-        art = art_connection(tv)
-        try:
-            items = art.available()
-            current = art.get_current()
-            current_id = current.get("content_id") if isinstance(current, dict) else None
+    items = art.available()
+    current = art.get_current()
+    current_id = current.get("content_id") if isinstance(current, dict) else None
 
-            new_ids_set = set()
-            for item in items:
-                cid = item["content_id"]
-                if cid not in old_ids and cid not in cached_on_disk:
-                    new_ids_set.add(cid)
+    new_ids_set = set()
+    for item in items:
+        cid = item["content_id"]
+        if cid not in old_ids and cid not in cached_on_disk:
+            new_ids_set.add(cid)
 
-            current_ids = {item["content_id"] for item in items}
-            removed_ids = old_ids - current_ids
-            for cid in removed_ids:
-                path = THUMB_DIR / f"{cid}.jpg"
-                path.unlink(missing_ok=True)
+    current_ids = {item["content_id"] for item in items}
+    removed_ids = old_ids - current_ids
+    for cid in removed_ids:
+        path = THUMB_DIR / f"{cid}.jpg"
+        path.unlink(missing_ok=True)
 
-            _art_cache = items
-            _current_id_cache = current_id
-            log.info(
-                "Art cache refreshed: %d items, %d new, %d removed",
-                len(items), len(new_ids_set), len(removed_ids),
-            )
-            return {
-                "items": items,
-                "current_id": current_id,
-                "new_ids": list(new_ids_set),
-                "removed_ids": list(removed_ids),
-            }
-        finally:
-            tv.close()
-    except Exception as e:
-        if _art_cache is not None:
-            log.warning("TV unreachable, serving stale cache: %s", e)
-            return {
-                "items": _art_cache,
-                "current_id": _current_id_cache,
-                "stale": True,
-            }
-        raise HTTPException(502, "Cannot reach TV — is it on and connected?")
+    _art_cache = items
+    _current_id_cache = current_id
+    log.info(
+        "Art cache refreshed: %d items, %d new, %d removed",
+        len(items), len(new_ids_set), len(removed_ids),
+    )
+    return {
+        "items": items,
+        "current_id": current_id,
+        "new_ids": list(new_ids_set),
+        "removed_ids": list(removed_ids),
+    }
 
 
 def _invalidate_art_cache() -> None:
@@ -310,13 +310,23 @@ def _invalidate_art_cache() -> None:
     _art_cache = None
     _current_id_cache = None
 
+_startup_time: float = 0.0
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _startup_time
+    _startup_time = time.time()
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     CACHE_DIR.mkdir(exist_ok=True)
     THUMB_DIR.mkdir(exist_ok=True)
     ORIGINALS_DIR.mkdir(exist_ok=True)
+    # Validate all JSON data files at startup
+    _load_collections()
+    _load_artwork_meta()
+    _load_ai_config()
+    _load_api_usage()
+    _load_drive_sync()
     if not TV_IP:
         log.warning("DOCENT_TV_IP is not set — copy .env.example to .env and add your TV's IP address")
     else:
@@ -344,6 +354,43 @@ async def log_requests(request: Request, call_next):
 @app.get("/")
 async def index():
     return FileResponse(Path(__file__).parent / "index.html")
+
+
+@app.get("/health")
+async def health():
+    """Lightweight health check — no TV connection attempt."""
+    files = {}
+    for name, path in [
+        ("collections", COLLECTIONS_FILE),
+        ("artwork_meta", ARTWORK_META_FILE),
+        ("ai_config", AI_CONFIG_FILE),
+        ("api_usage", API_USAGE_FILE),
+        ("drive_sync", DRIVE_SYNC_FILE),
+    ]:
+        if not path.exists():
+            files[name] = "missing"
+        else:
+            try:
+                json.loads(path.read_text())
+                files[name] = "ok"
+            except (json.JSONDecodeError, ValueError):
+                files[name] = "corrupt"
+
+    dir_writable = os.access(DATA_DIR, os.W_OK)
+    has_errors = not dir_writable or "corrupt" in files.values()
+    status = "error" if has_errors else ("degraded" if not TV_IP else "ok")
+
+    payload = {
+        "status": status,
+        "version": "1.0.1",
+        "tv_ip": TV_IP,
+        "data_dir": str(DATA_DIR),
+        "data_files": files,
+        "uptime_seconds": round(time.time() - _startup_time),
+    }
+    if has_errors:
+        return JSONResponse(payload, status_code=503)
+    return payload
 
 
 # --- TV info ---
@@ -379,23 +426,24 @@ async def device_info():
 
 @app.get("/api/art")
 async def list_art():
-    async with _tv_lock:
-        result = await asyncio.to_thread(_refresh_art_cache_sync, False)
-    # Pre-fetch new thumbnails in background (outside lock)
-    new_ids = result.get("new_ids", [])
-    if new_ids:
-        asyncio.get_event_loop().run_in_executor(None, _fetch_thumbnails_sync, new_ids)
-    return result
+    if _art_cache is not None:
+        return {"items": _art_cache, "current_id": _current_id_cache}
+    try:
+        return await _tv_op(_refresh_art_cache)
+    except Exception as e:
+        log.warning("TV connection failed: %s", e)
+        raise HTTPException(502, "Cannot reach TV — is it on and connected?")
 
 
 @app.post("/api/art/refresh")
 async def refresh_art():
-    async with _tv_lock:
-        result = await asyncio.to_thread(_refresh_art_cache_sync, True)
-    new_ids = result.get("new_ids", [])
-    if new_ids:
-        asyncio.get_event_loop().run_in_executor(None, _fetch_thumbnails_sync, new_ids)
-    return result
+    try:
+        return await _tv_op(_refresh_art_cache)
+    except Exception as e:
+        if _art_cache is not None:
+            log.warning("TV unreachable, serving stale cache: %s", e)
+            return {"items": _art_cache, "current_id": _current_id_cache, "stale": True}
+        raise HTTPException(502, "Cannot reach TV — is it on and connected?")
 
 
 # --- Thumbnails (disk-cached) ---
@@ -683,13 +731,17 @@ async def set_slideshow(body: dict):
 # --- Collections ---
 
 def _load_collections() -> dict:
-    if COLLECTIONS_FILE.exists():
-        return json.loads(COLLECTIONS_FILE.read_text())
-    return {"collections": []}
+    return _safe_load_json(COLLECTIONS_FILE, lambda: {"collections": []})
 
 
 def _atomic_write_json(path: Path, data: dict) -> None:
-    """Write JSON atomically: write to temp file, then rename into place."""
+    """Write JSON atomically: back up existing, write to temp file, then rename into place."""
+    if path.exists():
+        try:
+            import shutil
+            shutil.copy2(path, path.with_suffix(".bak"))
+        except OSError:
+            pass
     content = json.dumps(data, indent=2)
     fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
     try:
@@ -796,9 +848,7 @@ async def remove_from_collection(collection_id: str, body: dict):
 # --- Artwork metadata ---
 
 def _load_artwork_meta() -> dict:
-    if ARTWORK_META_FILE.exists():
-        return json.loads(ARTWORK_META_FILE.read_text())
-    return {"artwork": {}}
+    return _safe_load_json(ARTWORK_META_FILE, lambda: {"artwork": {}})
 
 
 def _save_artwork_meta(data: dict) -> None:
@@ -833,16 +883,16 @@ async def update_artwork_meta(content_id: str, body: dict):
 
 def _load_ai_config() -> dict:
     defaults = {"provider": "claude", "auto_analyze": False, "opus_fallback": False, "use_google_vision": True, "claude": {"api_key": "", "model": "claude-sonnet-4-20250514"}, "openai": {"api_key": "", "model": "gpt-4.1"}, "google_vision": {"api_key": ""}}
-    if AI_CONFIG_FILE.exists():
-        saved = json.loads(AI_CONFIG_FILE.read_text())
-        for k, v in defaults.items():
-            if k not in saved:
-                saved[k] = v
-            elif isinstance(v, dict):
-                for dk, dv in v.items():
-                    saved[k].setdefault(dk, dv)
-        return saved
-    return defaults
+    saved = _safe_load_json(AI_CONFIG_FILE, lambda: None)
+    if saved is None:
+        return defaults
+    for k, v in defaults.items():
+        if k not in saved:
+            saved[k] = v
+        elif isinstance(v, dict):
+            for dk, dv in v.items():
+                saved[k].setdefault(dk, dv)
+    return saved
 
 
 def _save_ai_config(data: dict) -> None:
@@ -914,9 +964,7 @@ MODEL_PRICING = {
 
 
 def _load_api_usage() -> dict:
-    if API_USAGE_FILE.exists():
-        return json.loads(API_USAGE_FILE.read_text())
-    return {"monthly": {}}
+    return _safe_load_json(API_USAGE_FILE, lambda: {"monthly": {}})
 
 
 def _save_api_usage(data: dict) -> None:
@@ -1418,9 +1466,7 @@ async def _analyze_artwork_background(content_id: str):
 # --- Google Drive sync ---
 
 def _load_drive_sync() -> dict:
-    if DRIVE_SYNC_FILE.exists():
-        return json.loads(DRIVE_SYNC_FILE.read_text())
-    return {"api_key": None, "syncs": []}
+    return _safe_load_json(DRIVE_SYNC_FILE, lambda: {"api_key": None, "syncs": []})
 
 
 def _save_drive_sync(data: dict) -> None:
