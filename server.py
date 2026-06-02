@@ -521,7 +521,7 @@ async def get_thumbnails_batch(body: dict):
                         encoded[cid] = base64.b64encode(bytes(data)).decode()
                         break
         except Exception as e:
-            log.warning("Batch thumbnail fetch failed, falling back to individual: %s", e)
+            log.warning("Batch thumbnail fetch failed, scheduling background prefetch: %s", e)
             fallback = True
             # Instead of blocking the response with 20+ individual TV calls,
             # return immediately and prefetch the missing thumbnails in the

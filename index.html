@@ -2873,8 +2873,9 @@
       const BATCH = 20;
       const TIMEOUT_MS = 30000;
       // When the server is prefetching thumbnails in the background
-      // (fallback mode), allow more retries with shorter delays so the
-      // client picks up cached results as they become available.
+      // (fallback mode), allow more retries with a fixed 3s interval so
+      // the client picks up cached results as they become available.
+      // Normal mode uses escalating backoff (2s, 4s, 6s).
       const MAX_ATTEMPTS = _thumbFallbackSeen ? 8 : 3;
       const retryDelay = (a) => _thumbFallbackSeen ? 3000 : 2000 * (a + 1);
       for (let i = 0; i < ids.length; i += BATCH) {

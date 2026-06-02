@@ -277,7 +277,7 @@ class TestLargeCatalogScenario:
     lock contention and connection attempts.
     """
 
-    async def test_526_artworks_connection_count(self, client, mock_tv, tmp_data_dir, monkeypatch):
+    async def test_524_artworks_connection_count(self, client, mock_tv, tmp_data_dir, monkeypatch):
         """With 524 artworks, the frontend sends 26 batches of 20 + 1 batch of 4.
         If ALL fail and trigger individual fallback, that's up to
         524 individual _tv_op calls, each with 3 attempts = 1,572 connection attempts.

@@ -390,13 +390,14 @@ class TestThumbnailBatchFallback:
         # prefetched in the background and served from cache on retry.
         assert data["missing"] == ["ART001", "ART002"]
 
-        # Give the background task time to run
+        # Poll for background prefetch to complete (avoids fixed-sleep flakiness)
         import asyncio
-        await asyncio.sleep(0.2)
-
-        # Now a retry request should find them cached on disk
-        resp2 = await client.post("/api/thumbnails", json={"content_ids": ["ART001", "ART002"]})
-        data2 = resp2.json()
+        for _ in range(20):
+            await asyncio.sleep(0.1)
+            resp2 = await client.post("/api/thumbnails", json={"content_ids": ["ART001", "ART002"]})
+            data2 = resp2.json()
+            if "ART001" in data2["thumbnails"] and "ART002" in data2["thumbnails"]:
+                break
         assert "ART001" in data2["thumbnails"]
         assert "ART002" in data2["thumbnails"]
         assert data2["missing"] == []
@@ -419,13 +420,15 @@ class TestThumbnailBatchFallback:
         assert data["fallback"] is True
         assert data["missing"] == ["ART001", "ART002"]
 
-        # Give the background task time to run
+        # Poll for background prefetch to complete (avoids fixed-sleep flakiness)
         import asyncio
-        await asyncio.sleep(0.2)
-
-        # Retry — ART001 was cached by background task, ART002 still fails
-        resp2 = await client.post("/api/thumbnails", json={"content_ids": ["ART001", "ART002"]})
-        data2 = resp2.json()
+        for _ in range(20):
+            await asyncio.sleep(0.1)
+            resp2 = await client.post("/api/thumbnails", json={"content_ids": ["ART001", "ART002"]})
+            data2 = resp2.json()
+            if "ART001" in data2["thumbnails"]:
+                break
+        # ART001 was cached by background task, ART002 still fails
         assert "ART001" in data2["thumbnails"]
         assert "ART002" not in data2["thumbnails"]
         assert data2["missing"] == ["ART002"]
