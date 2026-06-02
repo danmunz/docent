@@ -36,6 +36,7 @@ Docent is a local web app that puts art on your TV. Drop an image in, press **"D
 - Google Drive sync — import artwork from a shared folder
 - Art Mode toggle, brightness/color temperature controls, and slideshow configuration
 - API usage tracking with per-model token counts and cost estimates
+- Health check endpoint (`/health`) for Docker and monitoring — returns data file integrity, directory writability, and uptime
 - Museum gallery design with light palette, serif typography, and curated motion
 - One-click `Docent.command` launcher with guided setup for non-technical users
 
@@ -167,7 +168,7 @@ docent/
   server.py          # FastAPI backend — TV control, AI pipeline, Drive sync
   index.html         # Single-page frontend (vanilla HTML/CSS/JS)
   assets/            # Logo, fonts, and sample artwork
-  tests/             # 73 integration tests, run via pre-commit hook
+  tests/             # 90 integration tests, run via pre-commit hook
   pyproject.toml     # Dependencies and project metadata
   .env.example       # Environment variable template
 ```
@@ -197,6 +198,8 @@ docker compose up -d
 ```
 
 `--network host` is recommended so the server can reach your TV on the local network. Data (artwork metadata, caches, TV token) persists in the `docent-data` volume.
+
+The image includes a `HEALTHCHECK` that polls `/health` every 30 seconds. Container orchestrators (Docker, Portainer, Unraid) will automatically mark the container unhealthy if data files are corrupt or the data directory is unwritable.
 
 ## Development
 
