@@ -465,7 +465,7 @@ async def get_thumbnail(content_id: str):
 async def get_thumbnails_batch(body: dict):
     content_ids = body.get("content_ids", [])
     if not content_ids:
-        return {"thumbnails": {}}
+        return {"thumbnails": {}, "missing": [], "fallback": False}
     _validate_content_ids(content_ids)
 
     encoded = {}
@@ -477,6 +477,7 @@ async def get_thumbnails_batch(body: dict):
         else:
             missing.append(cid)
 
+    fallback = False
     if missing:
         try:
             result = await _tv_op(lambda art: art.get_thumbnail_list(missing))
@@ -487,9 +488,21 @@ async def get_thumbnails_batch(body: dict):
                         encoded[cid] = base64.b64encode(bytes(data)).decode()
                         break
         except Exception as e:
-            log.warning("Batch thumbnail fetch failed: %s", e)
+            log.warning("Batch thumbnail fetch failed, falling back to individual: %s", e)
+            fallback = True
+            for cid in missing:
+                if cid in encoded:
+                    continue
+                try:
+                    data = await _tv_op(lambda art, _cid=cid: art.get_thumbnail(_cid))
+                    if data:
+                        _save_thumbnail(cid, data)
+                        encoded[cid] = base64.b64encode(bytes(data)).decode()
+                except Exception:
+                    log.debug("Could not fetch thumbnail for %s", cid)
 
-    return {"thumbnails": encoded, "missing": [c for c in missing if c not in encoded]}
+    still_missing = [c for c in missing if c not in encoded]
+    return {"thumbnails": encoded, "missing": still_missing, "fallback": fallback}
 
 
 # --- Select / display ---

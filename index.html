@@ -911,6 +911,51 @@
   .toast.toast-error { border-left-color: var(--danger); }
   .toast.toast-info { border-left-color: var(--accent); }
 
+  /* Thumbnail loading progress bar */
+  .thumb-progress {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--color-gallery-white);
+    border-top: 1px solid var(--border);
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    color: var(--text2);
+    z-index: 2500;
+    transform: translateY(100%);
+    transition: transform var(--duration-nav) var(--ease-entrance);
+    box-shadow: 0 -2px 8px rgba(28,26,23,0.06);
+  }
+  .thumb-progress.visible { transform: translateY(0); }
+  .thumb-progress-bar {
+    flex: 1;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .thumb-progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.3s ease;
+    width: 0%;
+  }
+  .thumb-progress-text {
+    white-space: nowrap;
+    min-width: 140px;
+  }
+  .thumb-progress-hint {
+    font-size: 11px;
+    color: var(--text2);
+    opacity: 0.7;
+    white-space: nowrap;
+  }
+
   /* Loading spinner */
   .spinner {
     display: inline-block;
@@ -1878,6 +1923,11 @@
     </div>
   </div>
 
+  <div class="thumb-progress" id="thumbProgress">
+    <span class="thumb-progress-text" id="thumbProgressText">Loading thumbnails…</span>
+    <div class="thumb-progress-bar"><div class="thumb-progress-fill" id="thumbProgressFill"></div></div>
+    <span class="thumb-progress-hint">Loading from TV — may take a minute for large collections</span>
+  </div>
   <div class="toast" id="toast"></div>
 
   <div class="crop-modal" id="cropModal">
@@ -2752,12 +2802,43 @@
     let _thumbObserver = null;
     let _pendingObserveIds = new Set();
     let _observeBatchTimer = null;
+    let _thumbTrackedIds = new Set();
+    let _thumbResolvedIds = new Set();
+    let _thumbFallbackSeen = false;
+
+    function _updateThumbProgress() {
+      const bar = document.getElementById('thumbProgress');
+      const fill = document.getElementById('thumbProgressFill');
+      const text = document.getElementById('thumbProgressText');
+      const total = _thumbTrackedIds.size;
+      const loaded = _thumbResolvedIds.size;
+      if (!_thumbFallbackSeen || total === 0) {
+        bar.classList.remove('visible');
+        return;
+      }
+      bar.classList.add('visible');
+      const pct = Math.min(100, Math.round((loaded / total) * 100));
+      fill.style.width = pct + '%';
+      text.textContent = `Loading thumbnails: ${loaded} / ${total}`;
+      if (loaded >= total) {
+        setTimeout(() => bar.classList.remove('visible'), 2000);
+      }
+    }
+
+    function _resetThumbProgress() {
+      _thumbTrackedIds = new Set();
+      _thumbResolvedIds = new Set();
+      _thumbFallbackSeen = false;
+      const bar = document.getElementById('thumbProgress');
+      if (bar) bar.classList.remove('visible');
+    }
 
     function setupThumbObserver() {
       if (_thumbObserver) _thumbObserver.disconnect();
       _pendingObserveIds.clear();
       clearTimeout(_observeBatchTimer);
       _observeBatchTimer = null;
+      _resetThumbProgress();
 
       _thumbObserver = new IntersectionObserver((entries) => {
         for (const entry of entries) {
@@ -2785,7 +2866,11 @@
 
     async function loadThumbnailBatch(ids, attempt = 0) {
       if (!ids.length) return;
-      const BATCH = 50;
+      // Track all IDs we attempt to load (Set deduplicates across retries)
+      for (const id of ids) {
+        if (!thumbCache[id]) _thumbTrackedIds.add(id);
+      }
+      const BATCH = 20;
       const TIMEOUT_MS = 30000;
       for (let i = 0; i < ids.length; i += BATCH) {
         const batch = ids.slice(i, i + BATCH);
@@ -2798,20 +2883,28 @@
             signal: controller.signal,
           });
           clearTimeout(timer);
+          if (data.fallback) _thumbFallbackSeen = true;
           for (const [name, b64] of Object.entries(data.thumbnails)) {
             const dataUrl = 'data:image/jpeg;base64,' + b64;
             const cid = batch.find(id => name.startsWith(id) || name === id);
-            if (cid) {
+            if (cid && !thumbCache[cid]) {
               thumbCache[cid] = dataUrl;
               replaceThumbEl(cid, dataUrl);
+              _thumbResolvedIds.add(cid);
             }
           }
+          if (_thumbFallbackSeen) _updateThumbProgress();
           // Retry missing IDs returned by the server
           const stillMissing = (data.missing || []).filter(id => !thumbCache[id]);
           if (stillMissing.length && attempt < 2) {
             setTimeout(() => loadThumbnailBatch(stillMissing, attempt + 1), 2000 * (attempt + 1));
           } else {
-            stillMissing.forEach(id => showThumbError(id));
+            // Final attempt exhausted — mark failures as resolved for progress
+            for (const id of stillMissing) {
+              showThumbError(id);
+              _thumbResolvedIds.add(id);
+            }
+            if (stillMissing.length && _thumbFallbackSeen) _updateThumbProgress();
           }
         } catch {
           clearTimeout(timer);
@@ -2819,9 +2912,14 @@
             const retryIds = batch.filter(id => !thumbCache[id]);
             setTimeout(() => loadThumbnailBatch(retryIds, attempt + 1), 2000 * (attempt + 1));
           } else {
+            // Final attempt exhausted — mark failures as resolved for progress
             for (const id of batch) {
-              if (!thumbCache[id]) showThumbError(id);
+              if (!thumbCache[id]) {
+                showThumbError(id);
+                _thumbResolvedIds.add(id);
+              }
             }
+            if (_thumbFallbackSeen) _updateThumbProgress();
           }
         }
       }
