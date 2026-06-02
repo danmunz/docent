@@ -465,7 +465,7 @@ async def get_thumbnail(content_id: str):
 async def get_thumbnails_batch(body: dict):
     content_ids = body.get("content_ids", [])
     if not content_ids:
-        return {"thumbnails": {}}
+        return {"thumbnails": {}, "missing": [], "fallback": False}
     _validate_content_ids(content_ids)
 
     encoded = {}
