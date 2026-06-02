@@ -152,3 +152,48 @@ class TestCostCalculation:
                 cost += stats["input_tokens"] / 1_000_000 * pricing["input_per_mtok"]
                 cost += stats["output_tokens"] / 1_000_000 * pricing["output_per_mtok"]
         assert cost == 18.0  # 1M * $3 input + 1M * $15 output
+
+
+# ---------------------------------------------------------------------------
+# Corrupted JSON recovery (#57)
+# ---------------------------------------------------------------------------
+
+class TestCorruptedJsonRecovery:
+    def test_corrupted_collections_returns_default(self, tmp_data_dir):
+        (tmp_data_dir / "collections.json").write_text("{broken json!!!")
+        data = server._load_collections()
+        assert data == {"collections": []}
+        # Verify corrupt backup was created
+        corrupt_files = list(tmp_data_dir.glob("collections.corrupt.*"))
+        assert len(corrupt_files) == 1
+
+    def test_corrupted_artwork_meta_returns_default(self, tmp_data_dir):
+        (tmp_data_dir / "artwork_meta.json").write_text("not valid json")
+        data = server._load_artwork_meta()
+        assert data == {"artwork": {}}
+
+    def test_corrupted_ai_config_returns_defaults(self, tmp_data_dir):
+        (tmp_data_dir / "ai_config.json").write_text("{{{")
+        config = server._load_ai_config()
+        assert config["provider"] == "claude"
+        assert config["openai"]["model"] == "gpt-4.1"
+
+    def test_corrupted_api_usage_returns_default(self, tmp_data_dir):
+        (tmp_data_dir / "api_usage.json").write_text("\\x00\\x00")
+        data = server._load_api_usage()
+        assert data == {"monthly": {}}
+
+    def test_corrupted_drive_sync_returns_default(self, tmp_data_dir):
+        (tmp_data_dir / "drive_sync.json").write_text("[invalid")
+        data = server._load_drive_sync()
+        assert data == {"api_key": None, "syncs": []}
+
+    def test_backup_on_write(self, tmp_data_dir):
+        original = {"collections": [{"id": "c1", "name": "Original"}]}
+        server._save_collections(original)
+        updated = {"collections": [{"id": "c1", "name": "Updated"}]}
+        server._save_collections(updated)
+        bak = tmp_data_dir / "collections.bak"
+        assert bak.exists()
+        bak_data = json.loads(bak.read_text())
+        assert bak_data["collections"][0]["name"] == "Original"

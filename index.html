@@ -1382,6 +1382,16 @@
     margin-top: 4px;
     line-height: 1.4;
   }
+  .settings-hint a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .settings-hint a:hover {
+    text-decoration: underline;
+  }
+  .provider-fields {
+    transition: opacity 0.25s ease;
+  }
 
   .ai-provenance {
     font-size: 11px;
@@ -1696,6 +1706,70 @@
   .app-footer a:hover {
     color: var(--accent);
   }
+
+  /* Jump-to-current FAB */
+  .jump-to-current {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 150;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 40px;
+    padding: 0 14px;
+    border-radius: 20px;
+    border: none;
+    background: var(--text);
+    color: #fff;
+    font-family: var(--font);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(12px);
+    transition: opacity 0.25s, transform 0.25s, padding 0.3s, border-radius 0.3s, width 0.3s;
+    white-space: nowrap;
+  }
+  .jump-to-current.visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+  .jump-to-current .fab-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+    transition: font-size 0.3s;
+  }
+  .jump-to-current .fab-label {
+    max-width: 120px;
+    overflow: hidden;
+    transition: max-width 0.3s ease, opacity 0.2s;
+    opacity: 1;
+  }
+  .jump-to-current.compact {
+    padding: 0;
+    width: 40px;
+    justify-content: center;
+    border-radius: 50%;
+  }
+  .jump-to-current.compact .fab-label {
+    max-width: 0;
+    opacity: 0;
+  }
+  .jump-to-current:hover {
+    background: var(--accent);
+  }
+  @keyframes pulse-ring {
+    0% { box-shadow: 0 0 0 0 rgba(43,79,160,0.4); }
+    70% { box-shadow: 0 0 0 12px rgba(43,79,160,0); }
+    100% { box-shadow: 0 0 0 0 rgba(43,79,160,0); }
+  }
+  .jump-to-current.highlight {
+    animation: pulse-ring 0.8s ease-out;
+  }
 </style>
 </head>
 <body>
@@ -1901,32 +1975,36 @@
 
       <div class="settings-section">
         <div class="settings-section-title">Identification</div>
+        <div class="settings-hint" style="margin-bottom:8px">Required for auto-identifying artwork titles, artists, and dates. Without it, you'll need to enter metadata manually.</div>
         <div class="settings-group">
           <label class="settings-toggle">
             <input type="checkbox" id="useGoogleVision">
             Use Google Vision to identify artworks
           </label>
-          <div class="settings-hint">Matches images against museum databases and the web. Free for up to 1,000 images/month.</div>
         </div>
         <div class="settings-group" id="gvKeyGroup">
           <label>Google Cloud Vision API Key</label>
           <input type="password" id="gvApiKey" placeholder="AIza...">
+          <div class="settings-hint">Free up to 1,000 images/month. <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Get a key →</a></div>
         </div>
       </div>
 
       <div class="settings-section">
         <div class="settings-section-title">Analysis</div>
+        <div class="settings-hint" style="margin-bottom:8px">Required for AI-generated descriptions, style analysis, and Atmosphere recommendations. Without it, artwork cards will only show basic file info.</div>
         <div class="settings-group">
           <label>Provider</label>
           <select id="aiProvider" onchange="toggleProviderFields()">
             <option value="claude">Claude (Anthropic)</option>
             <option value="openai">GPT (OpenAI)</option>
           </select>
+          <div class="settings-hint">Pick whichever you already have a key for.</div>
         </div>
-        <div id="claudeFields">
+        <div id="claudeFields" class="provider-fields">
           <div class="settings-group">
             <label>Claude API Key</label>
             <input type="password" id="aiApiKey" placeholder="sk-ant-...">
+            <div class="settings-hint"><a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">Get a key →</a></div>
           </div>
           <div class="settings-group">
             <label>Model</label>
@@ -1935,6 +2013,7 @@
               <option value="claude-haiku-4-5-20251001">Haiku 4.5 ($0.80/$4 per MTok)</option>
               <option value="claude-opus-4-20250514">Opus 4 ($15/$75 per MTok)</option>
             </select>
+            <div class="settings-hint">Sonnet is best for most users. Haiku is cheapest.</div>
           </div>
           <div class="settings-group">
             <label class="settings-toggle">
@@ -1943,10 +2022,11 @@
             </label>
           </div>
         </div>
-        <div id="openaiFields" style="display:none">
+        <div id="openaiFields" class="provider-fields" style="display:none">
           <div class="settings-group">
             <label>OpenAI API Key</label>
             <input type="password" id="openaiApiKey" placeholder="sk-proj-...">
+            <div class="settings-hint"><a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">Get a key →</a></div>
           </div>
           <div class="settings-group">
             <label>Model</label>
@@ -2128,6 +2208,20 @@
 
     // --- API helpers ---
 
+    function updateTvStatus(online) {
+      const el = document.getElementById('tvStatus');
+      if (!el) return;
+      if (online) {
+        if (artItems.length) {
+          el.innerHTML = `<span class="dot on"></span>${artItems.length} artwork${artItems.length !== 1 ? 's' : ''} on Frame`;
+        } else {
+          el.innerHTML = `<span class="dot"></span>TV is listening`;
+        }
+      } else {
+        el.innerHTML = `<span class="dot off"></span>TV went to sleep`;
+      }
+    }
+
     async function api(path, opts = {}) {
       const url = '/api' + path;
       const hasExternalSignal = !!opts.signal;
@@ -2144,6 +2238,7 @@
         const res = await fetch(url, fetchOpts);
         if (timer) clearTimeout(timer);
         if (!res.ok) {
+          if (res.status === 502) updateTvStatus(false);
           const err = await res.text();
           throw new Error(err);
         }
@@ -2327,11 +2422,9 @@
         const info = await api('/info');
         artModeOn = info.artmode === 'on';
         updateArtModeButton();
-        document.getElementById('tvStatus').innerHTML =
-          `<span class="dot"></span>TV is listening`;
+        updateTvStatus(true);
       } catch (e) {
-        document.getElementById('tvStatus').innerHTML =
-          `<span class="dot off"></span>TV went to sleep`;
+        updateTvStatus(false);
         toast('Cannot connect to TV: ' + e.message, 'error');
       }
 
@@ -2484,6 +2577,7 @@
         if (data.stale) toast('Showing cached data — TV unreachable', 'info');
         updateArtworkCount();
         renderGrid();
+        _updateCurrentCardObserver();
       } catch (e) {
         grid.innerHTML = `<div class="empty-state"><h3>Could not load artwork</h3><p>${e.message}</p></div>`;
       }
@@ -2499,6 +2593,7 @@
         const removedCount = data.removed_ids?.length || 0;
         updateArtworkCount();
         renderGrid();
+        _updateCurrentCardObserver();
         if (newCount || removedCount) {
           toast(`${newCount} new, ${removedCount} removed`, 'success');
         } else {
@@ -2624,6 +2719,36 @@
       }
     }
 
+    /* --- Jump-to-current FAB (#63) --- */
+
+    function scrollToCurrentCard() {
+      const card = document.querySelector('.art-card.current');
+      if (!card) {
+        toast('Current artwork is not visible — try clearing filters', 'info');
+        return;
+      }
+      const headerH = document.querySelector('header').offsetHeight;
+      const navEl = document.getElementById('groupNav');
+      const navH = navEl ? navEl.offsetHeight : 0;
+      const y = card.getBoundingClientRect().top + window.scrollY - headerH - navH - 12;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+      const fab = document.getElementById('jumpToCurrentFab');
+      fab.classList.add('highlight');
+      setTimeout(() => fab.classList.remove('highlight'), 900);
+    }
+
+    function _updateCurrentCardObserver() {
+      const fab = document.getElementById('jumpToCurrentFab');
+      fab.classList.toggle('visible', !!currentId);
+      _updateFabCompact();
+    }
+
+    function _updateFabCompact() {
+      const fab = document.getElementById('jumpToCurrentFab');
+      fab.classList.toggle('compact', window.scrollY > 200);
+    }
+    window.addEventListener('scroll', _updateFabCompact, { passive: true });
+
     let _thumbObserver = null;
     let _pendingObserveIds = new Set();
     let _observeBatchTimer = null;
@@ -2660,8 +2785,8 @@
 
     async function loadThumbnailBatch(ids, attempt = 0) {
       if (!ids.length) return;
-      const BATCH = 10;
-      const TIMEOUT_MS = 12000;
+      const BATCH = 50;
+      const TIMEOUT_MS = 30000;
       for (let i = 0; i < ids.length; i += BATCH) {
         const batch = ids.slice(i, i + BATCH);
         const controller = new AbortController();
@@ -2739,13 +2864,8 @@
     }
 
     function updateArtworkCount() {
-      const el = document.getElementById('tvStatus');
-      if (!el || !artItems.length) return;
-      const existing = el.textContent;
-      // Only update if TV is connected (don't overwrite error messages)
-      if (existing.includes('Finding') || existing.includes('Connected') || existing.includes('artwork')) {
-        el.innerHTML = `<span class="dot on"></span>${artItems.length} artwork${artItems.length !== 1 ? 's' : ''} on Frame`;
-      }
+      if (!artItems.length) return;
+      updateTvStatus(true);
     }
 
     // --- Card interactions ---
@@ -2995,6 +3115,7 @@
         await api('/select', { method: 'POST', body: { content_id: detailItem.content_id } });
         currentId = detailItem.content_id;
         renderGrid();
+        _updateCurrentCardObserver();
         toast('Now displaying', 'success');
       } catch (e) {
         toast('Failed: ' + e.message, 'error');
@@ -3629,8 +3750,16 @@
 
     function toggleProviderFields() {
       const provider = document.getElementById('aiProvider').value;
-      document.getElementById('claudeFields').style.display = provider === 'claude' ? '' : 'none';
-      document.getElementById('openaiFields').style.display = provider === 'openai' ? '' : 'none';
+      const claude = document.getElementById('claudeFields');
+      const openai = document.getElementById('openaiFields');
+      const showing = provider === 'claude' ? claude : openai;
+      const hiding = provider === 'claude' ? openai : claude;
+      hiding.style.opacity = '0';
+      setTimeout(() => {
+        hiding.style.display = 'none';
+        showing.style.display = '';
+        requestAnimationFrame(() => { showing.style.opacity = '1'; });
+      }, 200);
     }
 
     async function openSettings() {
@@ -4053,6 +4182,7 @@
         await api('/select', { method: 'POST', body: { content_id: atmosphereResult.content_id } });
         currentId = atmosphereResult.content_id;
         renderGrid();
+        _updateCurrentCardObserver();
         toast(`Now displaying: ${atmosphereResult.artwork_title}`, 'success');
         closeAtmosphere();
       } catch (e) {
@@ -4182,5 +4312,6 @@
     // --- Start ---
     init();
   </script>
+  <button class="jump-to-current" id="jumpToCurrentFab" title="Scroll to the artwork currently on your TV" onclick="scrollToCurrentCard()"><span class="fab-icon">▶</span><span class="fab-label">Now showing</span></button>
 </body>
 </html>
