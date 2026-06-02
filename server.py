@@ -88,6 +88,8 @@ _current_id_cache: str | None = None
 _tv_lock = asyncio.Lock()
 _tv_conn: SamsungTVWS | None = None
 _tv_art = None
+_tv_last_used: float = 0
+TV_CONN_MAX_IDLE = 30  # seconds — proactively reconnect after this idle time
 _meta_lock = asyncio.Lock()
 _collections_lock = asyncio.Lock()
 _config_lock = asyncio.Lock()
@@ -122,15 +124,24 @@ def art_connection(tv: SamsungTVWS):
 def _ensure_tv_connection():
     """Return the current art connection, creating one if needed.
 
-    Must only be called while ``_tv_lock`` is held.
+    Must only be called while ``_tv_lock`` is held.  If the connection
+    has been idle longer than ``TV_CONN_MAX_IDLE`` seconds it is
+    proactively closed and reopened — Samsung Frame WebSockets go
+    stale after ~30-60 s of inactivity, leading to BrokenPipeError.
     """
-    global _tv_conn, _tv_art
+    global _tv_conn, _tv_art, _tv_last_used
     if _tv_art is not None:
-        return _tv_art
+        idle = time.monotonic() - _tv_last_used
+        if idle > TV_CONN_MAX_IDLE:
+            log.debug("TV connection idle for %.0fs — reconnecting", idle)
+            _close_tv_connection()
+        else:
+            return _tv_art
     tv = get_tv()
     art = art_connection(tv)
     _tv_conn = tv
     _tv_art = art
+    _tv_last_used = time.monotonic()
     log.debug("TV connection opened")
     return art
 
@@ -206,7 +217,10 @@ async def _tv_op(fn, *, attempts: int = TV_CONNECT_ATTEMPTS, timeout: float | No
     for attempt in range(attempts):
         async with _tv_lock:
             try:
-                return await asyncio.wait_for(asyncio.to_thread(_job), timeout=timeout)
+                result = await asyncio.wait_for(asyncio.to_thread(_job), timeout=timeout)
+                global _tv_last_used
+                _tv_last_used = time.monotonic()
+                return result
             except ResponseError:
                 raise  # TV answered with a definitive error — retrying won't help
             except Exception as e:
@@ -461,6 +475,25 @@ async def get_thumbnail(content_id: str):
     return Response(content=bytes(data), media_type="image/jpeg")
 
 
+# Background thumbnail prefetch — tracks IDs already being fetched so
+# concurrent/retry requests don't spawn duplicate work.
+_thumb_prefetch_in_progress: set[str] = set()
+
+
+async def _prefetch_thumbnails(content_ids: list[str]) -> None:
+    """Fetch thumbnails individually in the background and cache to disk."""
+    for cid in content_ids:
+        try:
+            data = await _tv_op(lambda art, _cid=cid: art.get_thumbnail(_cid))
+            if data:
+                _save_thumbnail(cid, data)
+                log.debug("Background prefetch cached thumbnail for %s", cid)
+        except Exception:
+            log.debug("Background prefetch failed for %s", cid)
+        finally:
+            _thumb_prefetch_in_progress.discard(cid)
+
+
 @app.post("/api/thumbnails")
 async def get_thumbnails_batch(body: dict):
     content_ids = body.get("content_ids", [])
@@ -488,18 +521,18 @@ async def get_thumbnails_batch(body: dict):
                         encoded[cid] = base64.b64encode(bytes(data)).decode()
                         break
         except Exception as e:
-            log.warning("Batch thumbnail fetch failed, falling back to individual: %s", e)
+            log.warning("Batch thumbnail fetch failed, scheduling background prefetch: %s", e)
             fallback = True
-            for cid in missing:
-                if cid in encoded:
-                    continue
-                try:
-                    data = await _tv_op(lambda art, _cid=cid: art.get_thumbnail(_cid))
-                    if data:
-                        _save_thumbnail(cid, data)
-                        encoded[cid] = base64.b64encode(bytes(data)).decode()
-                except Exception:
-                    log.debug("Could not fetch thumbnail for %s", cid)
+            # Instead of blocking the response with 20+ individual TV calls,
+            # return immediately and prefetch the missing thumbnails in the
+            # background.  The client will retry and find them cached on disk.
+            to_prefetch = [
+                cid for cid in missing
+                if cid not in encoded and cid not in _thumb_prefetch_in_progress
+            ]
+            if to_prefetch:
+                _thumb_prefetch_in_progress.update(to_prefetch)
+                asyncio.create_task(_prefetch_thumbnails(to_prefetch))
 
     still_missing = [c for c in missing if c not in encoded]
     return {"thumbnails": encoded, "missing": still_missing, "fallback": fallback}
