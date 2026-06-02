@@ -2872,6 +2872,11 @@
       }
       const BATCH = 20;
       const TIMEOUT_MS = 30000;
+      // When the server is prefetching thumbnails in the background
+      // (fallback mode), allow more retries with shorter delays so the
+      // client picks up cached results as they become available.
+      const MAX_ATTEMPTS = _thumbFallbackSeen ? 8 : 3;
+      const retryDelay = (a) => _thumbFallbackSeen ? 3000 : 2000 * (a + 1);
       for (let i = 0; i < ids.length; i += BATCH) {
         const batch = ids.slice(i, i + BATCH);
         const controller = new AbortController();
@@ -2896,8 +2901,8 @@
           if (_thumbFallbackSeen) _updateThumbProgress();
           // Retry missing IDs returned by the server
           const stillMissing = (data.missing || []).filter(id => !thumbCache[id]);
-          if (stillMissing.length && attempt < 2) {
-            setTimeout(() => loadThumbnailBatch(stillMissing, attempt + 1), 2000 * (attempt + 1));
+          if (stillMissing.length && attempt + 1 < MAX_ATTEMPTS) {
+            setTimeout(() => loadThumbnailBatch(stillMissing, attempt + 1), retryDelay(attempt));
           } else {
             // Final attempt exhausted — mark failures as resolved for progress
             for (const id of stillMissing) {
@@ -2908,9 +2913,9 @@
           }
         } catch {
           clearTimeout(timer);
-          if (attempt < 2) {
+          if (attempt + 1 < MAX_ATTEMPTS) {
             const retryIds = batch.filter(id => !thumbCache[id]);
-            setTimeout(() => loadThumbnailBatch(retryIds, attempt + 1), 2000 * (attempt + 1));
+            setTimeout(() => loadThumbnailBatch(retryIds, attempt + 1), retryDelay(attempt));
           } else {
             // Final attempt exhausted — mark failures as resolved for progress
             for (const id of batch) {

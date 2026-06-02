@@ -71,30 +71,49 @@ class TestThumbnailKeyMatching:
 # ---------------------------------------------------------------------------
 
 class TestIndividualFallbackBehavior:
-    """When get_thumbnail_list raises an exception, the server falls back to
-    individual get_thumbnail calls. With 20 IDs per batch, that's 20
-    sequential _tv_op calls — each acquiring the lock, potentially
-    reconnecting, and opening a D2D socket.
+    """When get_thumbnail_list raises an exception, the server now returns
+    immediately and prefetches missing thumbnails in a background task.
+    This breaks the timeout race that blocked Nitrowolf's UI.
     """
 
-    async def test_fallback_makes_n_individual_calls(self, client, mock_tv, tmp_data_dir):
-        """Each missing ID in fallback triggers a separate _tv_op call."""
+    async def test_fallback_returns_immediately_and_prefetches(self, client, mock_tv, tmp_data_dir, monkeypatch):
+        """Response returns fast with all IDs as missing; background task
+        fetches them individually and caches to disk."""
+        monkeypatch.setattr(server, "TV_RETRY_DELAY", 0.01)
         mock_tv.get_thumbnail_list.side_effect = ConnectionFailure({"reason": "socket closed"})
         mock_tv.get_thumbnail.return_value = bytearray(b"\xff\xd8\xff\xe0thumb")
 
         ids = [f"ART{i:03d}" for i in range(20)]
+        start = time.monotonic()
         resp = await client.post("/api/thumbnails", json={"content_ids": ids})
+        elapsed = time.monotonic() - start
         data = resp.json()
+
         assert data["fallback"] is True
-        # The server made 20 individual get_thumbnail calls
+        # Response returns FAST — no inline individual calls
+        assert elapsed < 2.0, f"Response took {elapsed:.2f}s, should be fast"
+        # All IDs are missing in the immediate response
+        assert len(data["missing"]) == 20
+        # No thumbnails inline (they're being prefetched)
+        assert len(data["thumbnails"]) == 0
+
+        # Give background task time to run
+        await asyncio.sleep(0.5)
+
+        # Now the background task should have cached them
+        resp2 = await client.post("/api/thumbnails", json={"content_ids": ids})
+        data2 = resp2.json()
+        assert len(data2["thumbnails"]) == 20
+        assert data2["missing"] == []
+        # Background task made 20 individual get_thumbnail calls
         assert mock_tv.get_thumbnail.call_count == 20
 
-    async def test_fallback_cascading_failures(self, client, mock_tv, tmp_data_dir):
-        """When the TV is unstable, individual fallback calls also fail,
-        compounding the problem.
+    async def test_fallback_cascading_failures(self, client, mock_tv, tmp_data_dir, monkeypatch):
+        """When the TV is unstable, background prefetch caches what it can
+        and drops the rest.
         """
+        monkeypatch.setattr(server, "TV_RETRY_DELAY", 0.01)
         mock_tv.get_thumbnail_list.side_effect = ConnectionFailure({"reason": "socket closed"})
-        # First few succeed, then the TV gives up
         call_count = 0
         def flaky_get_thumbnail(cid):
             nonlocal call_count
@@ -109,20 +128,23 @@ class TestIndividualFallbackBehavior:
         resp = await client.post("/api/thumbnails", json={"content_ids": ids})
         data = resp.json()
         assert data["fallback"] is True
-        # Only 3 thumbnails succeeded
-        assert len(data["thumbnails"]) == 3
-        # 7 are still missing
-        assert len(data["missing"]) == 7
+        # Immediate response has all 10 as missing
+        assert len(data["missing"]) == 10
 
-    async def test_fallback_total_time_with_retries(self, client, mock_tv, tmp_data_dir, monkeypatch):
-        """Measure wall-clock time: individual fallback for N IDs where each
-        _tv_op fails and retries 3 times. Each retry has a 2s delay.
+        # Give background task time to finish
+        await asyncio.sleep(0.5)
 
-        For 5 IDs with 3 attempts each = 15 _tv_op calls, with 2 retries
-        per call sleeping 2s each = potentially 5 * 2 * 2 = 20 seconds of
-        just sleeping. This is why the UI freezes.
+        # Retry — only 3 were cached successfully
+        resp2 = await client.post("/api/thumbnails", json={"content_ids": ids})
+        data2 = resp2.json()
+        assert len(data2["thumbnails"]) == 3
+        assert len(data2["missing"]) == 7
+
+    async def test_fallback_response_time_is_bounded(self, client, mock_tv, tmp_data_dir, monkeypatch):
+        """The response returns in bounded time regardless of how many IDs
+        are missing or how slow the TV is. The old inline fallback would
+        take 5 × 2 retries × 2s = 20 seconds for just 5 IDs.
         """
-        # Patch retry delay to be fast for testing
         monkeypatch.setattr(server, "TV_RETRY_DELAY", 0.01)
 
         mock_tv.get_thumbnail_list.side_effect = ConnectionFailure({"reason": "socket closed"})
@@ -136,10 +158,11 @@ class TestIndividualFallbackBehavior:
         data = resp.json()
         assert data["fallback"] is True
         assert len(data["missing"]) == 5
-        # Even with 0.01s retry delay, 5 IDs * 3 attempts each means
-        # 5 * 2 retries * 0.01s = 0.1s minimum just from retry delays
-        # At the real 2s delay this would be 5 * 2 * 2 = 20 seconds
-        # for a SINGLE batch of 5 thumbnails.
+        # Response is fast — no inline retry delays
+        assert elapsed < 2.0, (
+            f"Response took {elapsed:.2f}s — should be bounded by the initial "
+            f"get_thumbnail_list attempt only, not 20+ seconds of individual calls"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -258,42 +281,40 @@ class TestLargeCatalogScenario:
         """With 524 artworks, the frontend sends 26 batches of 20 + 1 batch of 4.
         If ALL fail and trigger individual fallback, that's up to
         524 individual _tv_op calls, each with 3 attempts = 1,572 connection attempts.
+
+        With the background prefetch fix, the response returns immediately
+        and the individual calls happen asynchronously.
         """
         monkeypatch.setattr(server, "TV_RETRY_DELAY", 0.001)
 
         batch_call_count = 0
-        individual_call_count = 0
 
         def fail_batch(ids):
             nonlocal batch_call_count
             batch_call_count += 1
             raise ConnectionFailure({"reason": "socket closed"})
 
-        def fail_individual(cid):
-            nonlocal individual_call_count
-            individual_call_count += 1
-            raise ConnectionFailure({"reason": "socket closed"})
-
         mock_tv.get_thumbnail_list.side_effect = fail_batch
-        mock_tv.get_thumbnail.side_effect = fail_individual
+        mock_tv.get_thumbnail.side_effect = ConnectionFailure({"reason": "socket closed"})
 
         # Simulate ONE batch of 20 (what the frontend sends)
         ids = [f"ART{i:04d}" for i in range(20)]
+        start = time.monotonic()
         resp = await client.post("/api/thumbnails", json={"content_ids": ids})
+        elapsed = time.monotonic() - start
         data = resp.json()
 
         assert data["fallback"] is True
         assert len(data["missing"]) == 20
-        # With 3 attempts per _tv_op:
-        # 1 batch call (3 attempts) + 20 individual calls (3 attempts each)
-        # = 3 + 60 = 63 connection attempts for ONE batch of 20
-        # For 524 artworks that's 26 batches × 63 = 1,638 connection attempts
-        total_attempts = batch_call_count + individual_call_count
-        # Each failing _tv_op with 3 attempts means 3 calls to get_thumbnail
-        # per content_id, so individual_call_count = 20 * 3 = 60
-        assert individual_call_count >= 20, (
-            f"Expected at least 20 individual calls, got {individual_call_count}. "
-            f"Each call uses 3 retry attempts internally."
+        # Response returns fast — no inline individual calls
+        assert elapsed < 2.0, f"Response took {elapsed:.2f}s, should be bounded"
+
+        # Give background task time to attempt individual calls
+        await asyncio.sleep(0.5)
+
+        # Background task attempted individual calls (20 IDs × 3 attempts each)
+        assert mock_tv.get_thumbnail.call_count >= 20, (
+            f"Expected at least 20 background individual calls, got {mock_tv.get_thumbnail.call_count}"
         )
 
     async def test_cached_thumbnails_skip_tv_entirely(self, client, mock_tv, tmp_data_dir):
@@ -395,8 +416,9 @@ class TestClientTimeoutRace:
     async def test_server_caches_thumbnails_despite_client_timeout(
         self, client, mock_tv, tmp_data_dir, monkeypatch
     ):
-        """Even when the client would abort (simulated), the server still
-        saves thumbnails to disk. This explains why click-to-retry works.
+        """With background prefetch, the server responds immediately and
+        prefetches thumbnails in the background. The cached thumbnails
+        are available on retry. This eliminates the timeout race entirely.
         """
         monkeypatch.setattr(server, "TV_RETRY_DELAY", 0.001)
         mock_tv.get_thumbnail_list.side_effect = ConnectionFailure({"reason": "socket closed"})
@@ -413,21 +435,25 @@ class TestClientTimeoutRace:
         mock_tv.get_thumbnail.side_effect = intermittent_thumbnail
 
         ids = [f"ART{i:03d}" for i in range(10)]
-        # This request completes (in tests, no actual 30s timeout)
+        # Response returns immediately — no inline individual calls
         resp = await client.post("/api/thumbnails", json={"content_ids": ids})
         data = resp.json()
 
-        # Server returned 5 thumbnails in the response
-        assert len(data["thumbnails"]) == 5
+        assert data["fallback"] is True
+        # Immediate response has all as missing (prefetch in background)
+        assert len(data["missing"]) == 10
 
-        # But crucially: those 5 are ALSO on disk
+        # Give background task time to complete
+        await asyncio.sleep(0.5)
+
+        # Background task cached 5 thumbnails to disk
         cached_count = sum(
             1 for i in range(10)
             if (server.THUMB_DIR / f"ART{i:03d}.jpg").exists()
         )
         assert cached_count == 5, (
-            "Server cached thumbnails to disk during fallback — "
-            "even if the client times out, a retry will find them in cache"
+            "Background prefetch cached thumbnails to disk — "
+            "retry will find them in cache"
         )
 
         # Now simulate the retry — all 10 IDs requested again
@@ -438,8 +464,6 @@ class TestClientTimeoutRace:
         data2 = resp2.json()
         # The 5 cached IDs are served from disk without touching TV
         assert len(data2["thumbnails"]) >= 5
-        # TV should NOT be called for the cached IDs
-        # (it may be called for the 5 missing ones)
 
     def test_frontend_retry_creates_infinite_loop(self):
         """Walk through the exact infinite loop scenario.

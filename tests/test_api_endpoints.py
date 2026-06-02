@@ -376,8 +376,9 @@ class TestThumbnailBatchFallback:
         assert "ART001" in data["thumbnails"]
         assert data["missing"] == []
 
-    async def test_batch_failure_falls_back_to_individual(self, client, mock_tv, tmp_data_dir):
-        """When get_thumbnail_list fails, should fall back to individual get_thumbnail."""
+    async def test_batch_failure_falls_back_to_background_prefetch(self, client, mock_tv, tmp_data_dir):
+        """When get_thumbnail_list fails, response returns immediately with
+        fallback=True and missing IDs; a background task prefetches them."""
         mock_tv.get_thumbnail_list.side_effect = Exception("socket closed")
         mock_tv.get_thumbnail.return_value = b"\xff\xd8\xff\xe0thumb-individual"
 
@@ -385,12 +386,24 @@ class TestThumbnailBatchFallback:
         assert resp.status_code == 200
         data = resp.json()
         assert data["fallback"] is True
-        assert "ART001" in data["thumbnails"]
-        assert "ART002" in data["thumbnails"]
-        assert data["missing"] == []
+        # Thumbnails are NOT in the immediate response — they'll be
+        # prefetched in the background and served from cache on retry.
+        assert data["missing"] == ["ART001", "ART002"]
+
+        # Give the background task time to run
+        import asyncio
+        await asyncio.sleep(0.2)
+
+        # Now a retry request should find them cached on disk
+        resp2 = await client.post("/api/thumbnails", json={"content_ids": ["ART001", "ART002"]})
+        data2 = resp2.json()
+        assert "ART001" in data2["thumbnails"]
+        assert "ART002" in data2["thumbnails"]
+        assert data2["missing"] == []
 
     async def test_partial_fallback_results(self, client, mock_tv, tmp_data_dir):
-        """When some individual fetches fail, return partial results."""
+        """When batch fails, missing IDs are prefetched in background.
+        IDs that the TV can't fetch remain missing even after retry."""
         mock_tv.get_thumbnail_list.side_effect = Exception("socket closed")
 
         def _get_thumb(cid):
@@ -404,9 +417,18 @@ class TestThumbnailBatchFallback:
         assert resp.status_code == 200
         data = resp.json()
         assert data["fallback"] is True
-        assert "ART001" in data["thumbnails"]
-        assert "ART002" not in data["thumbnails"]
-        assert data["missing"] == ["ART002"]
+        assert data["missing"] == ["ART001", "ART002"]
+
+        # Give the background task time to run
+        import asyncio
+        await asyncio.sleep(0.2)
+
+        # Retry — ART001 was cached by background task, ART002 still fails
+        resp2 = await client.post("/api/thumbnails", json={"content_ids": ["ART001", "ART002"]})
+        data2 = resp2.json()
+        assert "ART001" in data2["thumbnails"]
+        assert "ART002" not in data2["thumbnails"]
+        assert data2["missing"] == ["ART002"]
 
     async def test_cached_ids_skip_tv(self, client, mock_tv, tmp_data_dir):
         """Cached thumbnails should be returned without hitting the TV."""

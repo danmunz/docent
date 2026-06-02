@@ -33,6 +33,8 @@ def tmp_data_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(server, "_tv_conn", None)
     monkeypatch.setattr(server, "_tv_art", None)
     monkeypatch.setattr(server, "_nws_station_cache", {})
+    monkeypatch.setattr(server, "_thumb_prefetch_in_progress", set())
+    monkeypatch.setattr(server, "_tv_lock", asyncio.Lock())
 
     return tmp_path
 

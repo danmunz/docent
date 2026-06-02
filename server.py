@@ -461,6 +461,25 @@ async def get_thumbnail(content_id: str):
     return Response(content=bytes(data), media_type="image/jpeg")
 
 
+# Background thumbnail prefetch — tracks IDs already being fetched so
+# concurrent/retry requests don't spawn duplicate work.
+_thumb_prefetch_in_progress: set[str] = set()
+
+
+async def _prefetch_thumbnails(content_ids: list[str]) -> None:
+    """Fetch thumbnails individually in the background and cache to disk."""
+    for cid in content_ids:
+        try:
+            data = await _tv_op(lambda art, _cid=cid: art.get_thumbnail(_cid))
+            if data:
+                _save_thumbnail(cid, data)
+                log.debug("Background prefetch cached thumbnail for %s", cid)
+        except Exception:
+            log.debug("Background prefetch failed for %s", cid)
+        finally:
+            _thumb_prefetch_in_progress.discard(cid)
+
+
 @app.post("/api/thumbnails")
 async def get_thumbnails_batch(body: dict):
     content_ids = body.get("content_ids", [])
@@ -490,16 +509,16 @@ async def get_thumbnails_batch(body: dict):
         except Exception as e:
             log.warning("Batch thumbnail fetch failed, falling back to individual: %s", e)
             fallback = True
-            for cid in missing:
-                if cid in encoded:
-                    continue
-                try:
-                    data = await _tv_op(lambda art, _cid=cid: art.get_thumbnail(_cid))
-                    if data:
-                        _save_thumbnail(cid, data)
-                        encoded[cid] = base64.b64encode(bytes(data)).decode()
-                except Exception:
-                    log.debug("Could not fetch thumbnail for %s", cid)
+            # Instead of blocking the response with 20+ individual TV calls,
+            # return immediately and prefetch the missing thumbnails in the
+            # background.  The client will retry and find them cached on disk.
+            to_prefetch = [
+                cid for cid in missing
+                if cid not in encoded and cid not in _thumb_prefetch_in_progress
+            ]
+            if to_prefetch:
+                _thumb_prefetch_in_progress.update(to_prefetch)
+                asyncio.create_task(_prefetch_thumbnails(to_prefetch))
 
     still_missing = [c for c in missing if c not in encoded]
     return {"thumbnails": encoded, "missing": still_missing, "fallback": fallback}
