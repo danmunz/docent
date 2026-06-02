@@ -516,16 +516,20 @@ async def _prefetch_thumbnails(content_ids: list[str], *, source: str = "fallbac
     # to prevent races.  We only need the global decl for the finally block.
     consecutive_failures = 0
     fetched = 0
-    remaining_ids: list[str] = []
+    failed_ids: list[str] = []  # IDs that failed (included in retries)
+    remaining_ids: list[str] = []  # unattempted + failed IDs for retry
     try:
         for i, cid in enumerate(content_ids):
             if consecutive_failures >= _PREFETCH_MAX_FAILURES:
-                remaining_ids = content_ids[i:]
+                unattempted = content_ids[i:]
+                remaining_ids = failed_ids + unattempted
                 log.warning(
                     "Background prefetch aborting after %d consecutive failures "
-                    "(%d IDs remaining)",
+                    "(%d IDs remaining, %d failed + %d unattempted)",
                     consecutive_failures,
                     len(remaining_ids),
+                    len(failed_ids),
+                    len(unattempted),
                 )
                 # Release remaining IDs from the in-progress set
                 for remaining in remaining_ids:
@@ -546,6 +550,7 @@ async def _prefetch_thumbnails(content_ids: list[str], *, source: str = "fallbac
                 await asyncio.sleep(_PREFETCH_INTER_DELAY)
             except Exception:
                 consecutive_failures += 1
+                failed_ids.append(cid)
                 log.debug("Background prefetch failed for %s (%d consecutive)", cid, consecutive_failures)
                 # Back off longer after failures
                 await asyncio.sleep(_PREFETCH_BACKOFF * consecutive_failures)
@@ -591,6 +596,12 @@ async def _startup_prefetch() -> None:
         items = result.get("items", [])
     except Exception as e:
         log.warning("Startup prefetch: could not fetch artwork list: %s", e)
+        log.info(
+            "Scheduling startup prefetch retry in %ds",
+            _PREFETCH_RETRY_COOLDOWN,
+        )
+        await asyncio.sleep(_PREFETCH_RETRY_COOLDOWN)
+        asyncio.create_task(_startup_prefetch())
         return
 
     all_ids = [item["content_id"] for item in items]
