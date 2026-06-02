@@ -73,6 +73,77 @@ class TestConfigPut:
         assert config["openai"]["api_key"] == "sk-new-openai-key"
 
 
+class TestVisionTest:
+    async def test_no_key_returns_no_key(self, client, seed_ai_config):
+        seed_ai_config(google_vision={"api_key": ""})
+        resp = await client.post("/api/ai/test-vision")
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "no_key"
+
+    @respx.mock
+    async def test_ok_on_200(self, client, seed_ai_config):
+        seed_ai_config(google_vision={"api_key": "test-gv-key-ok"})
+        respx.post("https://vision.googleapis.com/v1/images:annotate").respond(
+            200, json={"responses": [{}]}
+        )
+        resp = await client.post("/api/ai/test-vision")
+        assert resp.json()["status"] == "ok"
+
+    @respx.mock
+    async def test_api_disabled_on_403(self, client, seed_ai_config):
+        seed_ai_config(google_vision={"api_key": "test-gv-key-403"})
+        respx.post("https://vision.googleapis.com/v1/images:annotate").respond(
+            403, json={
+                "error": {
+                    "code": 403,
+                    "message": "Cloud Vision API has not been used in project 12345",
+                    "details": [{"links": [{"url": "https://console.developers.google.com/apis/api/vision.googleapis.com/overview?project=12345"}]}],
+                }
+            }
+        )
+        resp = await client.post("/api/ai/test-vision")
+        data = resp.json()
+        assert data["status"] == "api_disabled"
+        assert "enable_url" not in data  # no "enableapi" in that URL
+        assert "12345" in data["message"]
+
+    @respx.mock
+    async def test_api_disabled_with_enable_url(self, client, seed_ai_config):
+        seed_ai_config(google_vision={"api_key": "test-gv-key-enable"})
+        respx.post("https://vision.googleapis.com/v1/images:annotate").respond(
+            403, json={
+                "error": {
+                    "code": 403,
+                    "message": "Vision API disabled",
+                    "details": [{"links": [{"url": "https://console.cloud.google.com/flows/enableapi?apiid=vision.googleapis.com&project=12345"}]}],
+                }
+            }
+        )
+        resp = await client.post("/api/ai/test-vision")
+        data = resp.json()
+        assert data["status"] == "api_disabled"
+        assert "enableapi" in data["enable_url"]
+
+    @respx.mock
+    async def test_invalid_key_on_400(self, client, seed_ai_config):
+        seed_ai_config(google_vision={"api_key": "bad-key"})
+        respx.post("https://vision.googleapis.com/v1/images:annotate").respond(
+            400, json={"error": {"code": 400, "message": "API key not valid"}}
+        )
+        resp = await client.post("/api/ai/test-vision")
+        assert resp.json()["status"] == "invalid_key"
+
+    @respx.mock
+    async def test_body_key_used_over_saved(self, client, seed_ai_config):
+        """Key in request body is used for testing (test-before-save flow)."""
+        seed_ai_config(google_vision={"api_key": ""})  # nothing saved
+        respx.post("https://vision.googleapis.com/v1/images:annotate").respond(
+            200, json={"responses": [{}]}
+        )
+        resp = await client.post("/api/ai/test-vision", json={"api_key": "test-gv-unsaved-key"})
+        assert resp.json()["status"] == "ok"
+
+
 # ---------------------------------------------------------------------------
 # Collections CRUD
 # ---------------------------------------------------------------------------

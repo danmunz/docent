@@ -1434,6 +1434,37 @@
   .settings-hint a:hover {
     text-decoration: underline;
   }
+  .settings-test-btn {
+    padding: 6px 14px;
+    font-size: 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .settings-test-btn:hover { background: var(--bg); border-color: var(--accent); }
+  .settings-test-btn:disabled { opacity: 0.5; cursor: default; }
+  .settings-test-result {
+    font-size: 12px;
+    margin-top: 6px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    line-height: 1.4;
+  }
+  .settings-test-result.ok { background: rgba(76,175,80,0.1); color: #4caf50; }
+  .settings-test-result.error { background: rgba(244,67,54,0.1); color: #f44336; }
+  .gv-steps {
+    display: inline;
+  }
+  .gv-steps a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 500;
+  }
+  .gv-steps a:hover { text-decoration: underline; }
   .provider-fields {
     transition: opacity 0.25s ease;
   }
@@ -2034,8 +2065,20 @@
         </div>
         <div class="settings-group" id="gvKeyGroup">
           <label>Google Cloud Vision API Key</label>
-          <input type="password" id="gvApiKey" placeholder="AIza...">
-          <div class="settings-hint">Free up to 1,000 images/month. <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Get a key →</a></div>
+          <div class="settings-hint" style="margin-bottom:6px">
+            <strong>Setup:</strong>
+            <span class="gv-steps">
+              ① <a href="https://console.cloud.google.com/flows/enableapi?apiid=vision.googleapis.com" target="_blank" rel="noopener">Enable the Vision API</a>
+              → ② <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Create an API key</a>
+              → ③ Paste below
+            </span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <input type="password" id="gvApiKey" placeholder="AIza..." style="flex:1">
+            <button type="button" class="settings-test-btn" id="gvTestBtn" onclick="testVisionKey()" title="Test API key">Test</button>
+          </div>
+          <div id="gvTestResult" class="settings-test-result" style="display:none"></div>
+          <div class="settings-hint">Free up to 1,000 images/month.</div>
         </div>
       </div>
 
@@ -3963,8 +4006,50 @@
           document.getElementById('gvApiKey').placeholder = '...' + gvKey.slice(-4);
           document.getElementById('gvApiKey').value = '';
         }
+        if (gvKey && useGoogleVision) testVisionKey();
       } catch (e) {
         toast('Failed: ' + e.message, 'error');
+      }
+    }
+
+    async function testVisionKey() {
+      const btn = document.getElementById('gvTestBtn');
+      const result = document.getElementById('gvTestResult');
+      const unsavedKey = document.getElementById('gvApiKey').value.trim();
+      btn.disabled = true;
+      btn.textContent = 'Testing…';
+      result.style.display = 'none';
+      result.className = 'settings-test-result';
+      try {
+        const body = unsavedKey ? { api_key: unsavedKey } : {};
+        const data = await api('/ai/test-vision', { method: 'POST', body });
+        result.style.display = 'block';
+        if (data.status === 'ok') {
+          result.classList.add('ok');
+          result.innerHTML = '✓ Connected — Vision API is working.';
+        } else if (data.status === 'api_disabled') {
+          result.classList.add('error');
+          const link = data.enable_url
+            ? `<a href="${data.enable_url}" target="_blank" rel="noopener">Enable it here</a>`
+            : `<a href="https://console.cloud.google.com/flows/enableapi?apiid=vision.googleapis.com" target="_blank" rel="noopener">Enable the Vision API</a>`;
+          result.innerHTML = `✗ The Vision API is not enabled on your Google Cloud project. ${link}, then test again.`;
+        } else if (data.status === 'no_key') {
+          result.classList.add('error');
+          result.innerHTML = '✗ No API key saved. Paste your key above and save first.';
+        } else if (data.status === 'invalid_key') {
+          result.classList.add('error');
+          result.innerHTML = '✗ Invalid API key. Check that you copied it correctly.';
+        } else {
+          result.classList.add('error');
+          result.innerHTML = `✗ ${data.message || 'Unknown error'}`;
+        }
+      } catch (e) {
+        result.style.display = 'block';
+        result.classList.add('error');
+        result.innerHTML = `✗ Test failed: ${e.message}`;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Test';
       }
     }
 
@@ -4026,6 +4111,12 @@
       const vibes = (ai.vibes || []).map(v => `<span class="vibe-pill">${v}</span>`).join('');
       const provenance = [];
       if (ai.vision_identified) provenance.push('ID: Google Vision');
+      if (ai.vision_error) {
+        const tip = ai.vision_error === 'api_disabled'
+          ? 'Vision API not enabled — <a href="#" onclick="openSettings();return false">fix in Settings</a>'
+          : 'Vision unavailable — <a href="#" onclick="openSettings();return false">check Settings</a>';
+        provenance.push(`<span style="color:var(--danger)">${tip}</span>`);
+      }
       if (ai.provider && ai.model) {
         const shortModel = ai.model.replace('claude-', '').replace('-20250514', '')
           .replace('-20251001', '').replace('gpt-', 'GPT-');

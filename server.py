@@ -996,6 +996,31 @@ async def update_ai_config(body: dict):
     return {"ok": True}
 
 
+@app.post("/api/ai/test-vision")
+async def test_vision_key(body: dict | None = None):
+    """Validate a Google Vision API key by making a minimal API call."""
+    # Accept an optional key in the body for test-before-save; fall back to saved.
+    gv_key = (body or {}).get("api_key", "") or _load_ai_config().get("google_vision", {}).get("api_key", "")
+    if not gv_key:
+        return {"status": "no_key", "message": "No Google Vision API key configured."}
+    # Use a tiny 1x1 white PNG to minimize bandwidth while exercising the full
+    # auth + API-enabled check.  The actual Vision result doesn't matter.
+    TEST_IMAGE_B64 = (
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4"
+        "nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC"
+    )
+    try:
+        await _call_google_vision(gv_key, TEST_IMAGE_B64)
+        return {"status": "ok", "message": "Google Vision API is working."}
+    except VisionApiError as e:
+        result = {"status": e.status, "message": e.message}
+        if e.enable_url:
+            result["enable_url"] = e.enable_url
+        return result
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
 # --- API usage tracking ---
 
 MODEL_PRICING = {
@@ -1157,6 +1182,7 @@ async def _analyze_artwork(content_id: str) -> dict:
     vision_title = ""
     vision_artist = ""
     vision_used = False
+    vision_error = ""
     gv_key = config.get("google_vision", {}).get("api_key", "")
     if config.get("use_google_vision") and gv_key:
         try:
@@ -1167,6 +1193,9 @@ async def _analyze_artwork(content_id: str) -> dict:
                 if vision_used:
                     log.info("Vision identified %s: '%s' by '%s' (score %.2f)",
                              content_id, vision_title, vision_artist, score)
+        except VisionApiError as e:
+            log.warning("Google Vision failed for %s: [%s] %s", content_id, e.status, e.message)
+            vision_error = e.status
         except Exception as e:
             log.warning("Google Vision failed for %s: %s", content_id, e)
 
@@ -1237,6 +1266,7 @@ async def _analyze_artwork(content_id: str) -> dict:
         "provider": provider,
         "model": model,
         "vision_identified": vision_used,
+        "vision_error": vision_error or None,
     }
 
     async with _meta_lock:
@@ -1337,6 +1367,40 @@ async def _call_openai_vision(
         return parsed
 
 
+class VisionApiError(Exception):
+    """Raised when Google Vision returns an actionable error."""
+    def __init__(self, status: str, message: str, enable_url: str = ""):
+        self.status = status
+        self.message = message
+        self.enable_url = enable_url
+        super().__init__(message)
+
+
+def _parse_vision_error(resp) -> VisionApiError:
+    """Extract actionable info from a Google Vision API error response."""
+    try:
+        body = resp.json()
+    except Exception:
+        return VisionApiError("error", f"HTTP {resp.status_code}")
+    error = body.get("error", {})
+    message = error.get("message", f"HTTP {resp.status_code}")
+    # Google 403 bodies include a project-specific enable URL in error.details
+    enable_url = ""
+    for detail in error.get("details", []):
+        for link in detail.get("links", []):
+            url = link.get("url", "")
+            if "enableapi" in url or "enable" in url.lower():
+                enable_url = url
+                break
+        if enable_url:
+            break
+    if resp.status_code == 403:
+        return VisionApiError("api_disabled", message, enable_url)
+    if resp.status_code == 400:
+        return VisionApiError("invalid_key", message)
+    return VisionApiError("error", message)
+
+
 async def _call_google_vision(api_key: str, image_b64: str) -> dict | None:
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
@@ -1350,8 +1414,7 @@ async def _call_google_vision(api_key: str, image_b64: str) -> dict | None:
             },
         )
         if resp.status_code != 200:
-            log.warning("Google Vision API error: %s", resp.status_code)
-            return None
+            raise _parse_vision_error(resp)
         return resp.json().get("responses", [{}])[0].get("webDetection", {})
 
 
