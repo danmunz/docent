@@ -357,3 +357,66 @@ class TestHealth:
         resp = await client.get("/health")
         data = resp.json()
         assert data["data_files"]["collections"] == "missing"
+
+
+# ---------------------------------------------------------------------------
+# Thumbnail batch fallback (#67)
+# ---------------------------------------------------------------------------
+
+class TestThumbnailBatchFallback:
+    async def test_batch_success_no_fallback(self, client, mock_tv, tmp_data_dir):
+        """When get_thumbnail_list succeeds, fallback should be False."""
+        mock_tv.get_thumbnail_list.return_value = {
+            "ART001": b"\xff\xd8\xff\xe0thumb1",
+        }
+        resp = await client.post("/api/thumbnails", json={"content_ids": ["ART001"]})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["fallback"] is False
+        assert "ART001" in data["thumbnails"]
+        assert data["missing"] == []
+
+    async def test_batch_failure_falls_back_to_individual(self, client, mock_tv, tmp_data_dir):
+        """When get_thumbnail_list fails, should fall back to individual get_thumbnail."""
+        mock_tv.get_thumbnail_list.side_effect = Exception("socket closed")
+        mock_tv.get_thumbnail.return_value = b"\xff\xd8\xff\xe0thumb-individual"
+
+        resp = await client.post("/api/thumbnails", json={"content_ids": ["ART001", "ART002"]})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["fallback"] is True
+        assert "ART001" in data["thumbnails"]
+        assert "ART002" in data["thumbnails"]
+        assert data["missing"] == []
+
+    async def test_partial_fallback_results(self, client, mock_tv, tmp_data_dir):
+        """When some individual fetches fail, return partial results."""
+        mock_tv.get_thumbnail_list.side_effect = Exception("socket closed")
+
+        def _get_thumb(cid):
+            if cid == "ART001":
+                return b"\xff\xd8\xff\xe0thumb1"
+            raise Exception("TV busy")
+
+        mock_tv.get_thumbnail.side_effect = _get_thumb
+
+        resp = await client.post("/api/thumbnails", json={"content_ids": ["ART001", "ART002"]})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["fallback"] is True
+        assert "ART001" in data["thumbnails"]
+        assert "ART002" not in data["thumbnails"]
+        assert data["missing"] == ["ART002"]
+
+    async def test_cached_ids_skip_tv(self, client, mock_tv, tmp_data_dir):
+        """Cached thumbnails should be returned without hitting the TV."""
+        thumb_dir = tmp_data_dir / ".cache" / "thumbnails"
+        (thumb_dir / "ART001.jpg").write_bytes(b"\xff\xd8\xff\xe0cached")
+
+        resp = await client.post("/api/thumbnails", json={"content_ids": ["ART001"]})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["fallback"] is False
+        assert "ART001" in data["thumbnails"]
+        mock_tv.get_thumbnail_list.assert_not_called()
+        mock_tv.get_thumbnail.assert_not_called()
