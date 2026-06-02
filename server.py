@@ -478,20 +478,61 @@ async def get_thumbnail(content_id: str):
 # Background thumbnail prefetch — tracks IDs already being fetched so
 # concurrent/retry requests don't spawn duplicate work.
 _thumb_prefetch_in_progress: set[str] = set()
+_thumb_prefetch_running: bool = False
+
+# Circuit breaker for get_thumbnail_list — if the batch call fails, skip
+# it for a cooldown period so retries return the cache instantly.
+_batch_thumb_last_failure: float = 0
+_BATCH_THUMB_COOLDOWN = 60  # seconds
+_PREFETCH_INTER_DELAY = 0.5  # seconds between successful fetches
+_PREFETCH_BACKOFF = 2  # multiplier for consecutive failure delays
+_PREFETCH_MAX_FAILURES = 5  # abort after this many consecutive failures
 
 
 async def _prefetch_thumbnails(content_ids: list[str]) -> None:
-    """Fetch thumbnails individually in the background and cache to disk."""
-    for cid in content_ids:
-        try:
-            data = await _tv_op(lambda art, _cid=cid: art.get_thumbnail(_cid))
-            if data:
-                _save_thumbnail(cid, data)
-                log.debug("Background prefetch cached thumbnail for %s", cid)
-        except Exception:
-            log.debug("Background prefetch failed for %s", cid)
-        finally:
-            _thumb_prefetch_in_progress.discard(cid)
+    """Fetch thumbnails individually in the background and cache to disk.
+
+    Uses single attempts with a short timeout to fail fast, adds a delay
+    between calls to avoid overwhelming the TV, and aborts after several
+    consecutive failures (the TV is likely unreachable).
+    """
+    global _thumb_prefetch_running
+    _thumb_prefetch_running = True
+    consecutive_failures = 0
+    try:
+        for cid in content_ids:
+            if consecutive_failures >= _PREFETCH_MAX_FAILURES:
+                log.warning(
+                    "Background prefetch aborting after %d consecutive failures "
+                    "(%d IDs remaining)",
+                    consecutive_failures,
+                    len(content_ids) - content_ids.index(cid),
+                )
+                # Release remaining IDs from the in-progress set
+                for remaining in content_ids[content_ids.index(cid):]:
+                    _thumb_prefetch_in_progress.discard(remaining)
+                break
+            try:
+                data = await _tv_op(
+                    lambda art, _cid=cid: art.get_thumbnail(_cid),
+                    attempts=1,
+                    timeout=TV_TIMEOUT,
+                )
+                if data:
+                    _save_thumbnail(cid, data)
+                    log.debug("Background prefetch cached thumbnail for %s", cid)
+                consecutive_failures = 0
+                # Brief pause between successful fetches to be gentle on the TV
+                await asyncio.sleep(_PREFETCH_INTER_DELAY)
+            except Exception:
+                consecutive_failures += 1
+                log.debug("Background prefetch failed for %s (%d consecutive)", cid, consecutive_failures)
+                # Back off longer after failures
+                await asyncio.sleep(_PREFETCH_BACKOFF * consecutive_failures)
+            finally:
+                _thumb_prefetch_in_progress.discard(cid)
+    finally:
+        _thumb_prefetch_running = False
 
 
 @app.post("/api/thumbnails")
@@ -512,17 +553,31 @@ async def get_thumbnails_batch(body: dict):
 
     fallback = False
     if missing:
-        try:
-            result = await _tv_op(lambda art: art.get_thumbnail_list(missing))
-            for name, data in result.items():
-                for cid in missing:
-                    if name.startswith(cid):
-                        _save_thumbnail(cid, data)
-                        encoded[cid] = base64.b64encode(bytes(data)).decode()
-                        break
-        except Exception as e:
-            log.warning("Batch thumbnail fetch failed, scheduling background prefetch: %s", e)
+        global _batch_thumb_last_failure
+        # Circuit breaker: if get_thumbnail_list failed recently, skip it
+        # entirely and serve what we have from cache.  This prevents the
+        # endpoint from blocking 8-60s on a call that will definitely fail,
+        # which is what was causing the 69-131s response times.
+        since_last_failure = time.monotonic() - _batch_thumb_last_failure
+        skip_batch = since_last_failure < _BATCH_THUMB_COOLDOWN
+
+        if skip_batch:
             fallback = True
+        else:
+            try:
+                result = await _tv_op(lambda art: art.get_thumbnail_list(missing))
+                for name, data in result.items():
+                    for cid in missing:
+                        if name.startswith(cid):
+                            _save_thumbnail(cid, data)
+                            encoded[cid] = base64.b64encode(bytes(data)).decode()
+                            break
+            except Exception as e:
+                _batch_thumb_last_failure = time.monotonic()
+                log.warning("Batch thumbnail fetch failed, scheduling background prefetch: %s", e)
+                fallback = True
+
+        if fallback:
             # Instead of blocking the response with 20+ individual TV calls,
             # return immediately and prefetch the missing thumbnails in the
             # background.  The client will retry and find them cached on disk.
@@ -530,7 +585,7 @@ async def get_thumbnails_batch(body: dict):
                 cid for cid in missing
                 if cid not in encoded and cid not in _thumb_prefetch_in_progress
             ]
-            if to_prefetch:
+            if to_prefetch and not _thumb_prefetch_running:
                 _thumb_prefetch_in_progress.update(to_prefetch)
                 asyncio.create_task(_prefetch_thumbnails(to_prefetch))
 
