@@ -3029,12 +3029,33 @@
         div.className = 'thumb loading';
         div.textContent = 'Loading...';
         div.onclick = null;
-        loadThumbnailBatch([cid]);
+        // Use the single-thumbnail endpoint which has full timeout (18s)
+        // and 3 retries — bypasses the batch circuit breaker.
+        retrySingleThumb(cid);
       };
       el.replaceWith(div);
     }
 
-    function retryAllThumbnails() {
+    async function retrySingleThumb(cid) {
+      try {
+        const resp = await fetch('/api/thumbnail/' + encodeURIComponent(cid));
+        if (!resp.ok) throw new Error(resp.status);
+        const blob = await resp.blob();
+        const dataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        thumbCache[cid] = dataUrl;
+        replaceThumbEl(cid, dataUrl);
+        _thumbResolvedIds.add(cid);
+      } catch {
+        showThumbError(cid);
+      }
+    }
+
+    async function retryAllThumbnails() {
       const errorEls = document.querySelectorAll('.thumb.load-error');
       const ids = [];
       errorEls.forEach(el => {
@@ -3054,10 +3075,19 @@
         const hint = document.getElementById('thumbProgressHint');
         hint.style.display = '';
         _updateThumbProgress();
-        // Reset circuit breaker and kick server-side prefetch
-        api('/thumbnails/retry', { method: 'POST', body: { content_ids: ids } })
-          .catch(() => {});
-        // Client-side retry polls for cached results
+        // Reset circuit breaker and kick server-side prefetch FIRST,
+        // then poll for cached results.  Awaiting prevents the race
+        // where loadThumbnailBatch re-trips the circuit breaker before
+        // the prefetch has started.
+        try {
+          await api('/thumbnails/retry', { method: 'POST', body: { content_ids: ids } });
+        } catch (e) {
+          console.debug('thumbnails/retry failed, prefetch may already be running:', e);
+        }
+        // Poll for cached results with a longer window — the server
+        // prefetch takes ~2–18s per thumbnail through the TV lock, so
+        // we need more patience than the normal 24s fallback window.
+        _thumbFallbackSeen = true;
         loadThumbnailBatch(ids);
       }
     }
