@@ -538,3 +538,69 @@ class TestThumbnailBatchFallback:
         assert data["scheduled"] == 1
         # Circuit breaker should be reset
         assert server._batch_thumb_last_failure == 0
+
+
+class TestPrefetchTimeout:
+    async def test_prefetch_uses_default_timeout(self, monkeypatch):
+        """_prefetch_thumbnails must NOT pass a short timeout to _tv_op.
+
+        The D2D socket protocol needs the full default timeout (TV_TIMEOUT + 8)
+        to complete.  A previous 5-second timeout caused 100% prefetch failure.
+        """
+        captured_kwargs = {}
+
+        async def fake_tv_op(fn, *, attempts=None, timeout=None):
+            captured_kwargs["attempts"] = attempts
+            captured_kwargs["timeout"] = timeout
+            return b"\xff\xd8\xff\xe0thumb"
+
+        monkeypatch.setattr(server, "_tv_op", fake_tv_op)
+        monkeypatch.setattr(server, "_save_thumbnail", lambda *a: None)
+
+        server._thumb_prefetch_running = True
+        await server._prefetch_thumbnails(["ART001"])
+
+        assert captured_kwargs["attempts"] == 1
+        # timeout must be None (uses _tv_op default), NOT a short value
+        assert captured_kwargs["timeout"] is None, (
+            f"Prefetch passed timeout={captured_kwargs['timeout']}; "
+            "should use default (None) so _tv_op applies TV_TIMEOUT + 8"
+        )
+
+    async def test_prefetch_no_short_timeout_constant(self):
+        """The _PREFETCH_TIMEOUT constant must not exist — it caused
+        100% failure on the D2D socket protocol."""
+        assert not hasattr(server, "_PREFETCH_TIMEOUT"), (
+            "_PREFETCH_TIMEOUT still exists in server.py; it was removed "
+            "because 5s is too short for D2D thumbnail transfers"
+        )
+
+
+class TestThumbnailDiag:
+    async def test_diag_returns_expected_fields(self, client, tmp_data_dir):
+        resp = await client.get("/api/thumbnails/diag")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "cached_thumbnails" in data
+        assert "total_artworks" in data
+        assert "prefetch_running" in data
+        assert "prefetch_in_progress_count" in data
+        assert "circuit_breaker_active" in data
+        assert "circuit_breaker_seconds_remaining" in data
+
+    async def test_diag_reflects_cached_files(self, client, tmp_data_dir):
+        thumb_dir = tmp_data_dir / ".cache" / "thumbnails"
+        thumb_dir.mkdir(parents=True, exist_ok=True)
+        (thumb_dir / "ART001.jpg").write_bytes(b"\xff\xd8")
+        (thumb_dir / "ART002.jpg").write_bytes(b"\xff\xd8")
+        resp = await client.get("/api/thumbnails/diag")
+        data = resp.json()
+        assert data["cached_thumbnails"] == 2
+
+    async def test_diag_circuit_breaker_status(self, client, tmp_data_dir):
+        import time
+        server._batch_thumb_last_failure = time.monotonic()
+        resp = await client.get("/api/thumbnails/diag")
+        data = resp.json()
+        assert data["circuit_breaker_active"] is True
+        assert data["circuit_breaker_seconds_remaining"] > 0
