@@ -298,13 +298,29 @@ class TestAtmosphere:
     @respx.mock
     async def test_full_pipeline(self, client, seed_ai_config, tmp_data_dir):
         seed_ai_config(claude={"api_key": "sk-ant-test-key-1234ZgAA"})
-        meta = {"artwork": {"ART001": {
-            "title": "Starry Night",
-            "ai_meta": {
-                "description": "A swirling night sky.",
-                "vibes": ["dreamy", "nocturnal", "serene"],
+        meta = {"artwork": {
+            "ART001": {
+                "title": "Starry Night",
+                "ai_meta": {
+                    "description": "A swirling night sky.",
+                    "vibes": ["dreamy", "nocturnal", "serene"],
+                },
             },
-        }}}
+            "ART002": {
+                "title": "Water Lilies",
+                "ai_meta": {
+                    "description": "Peaceful pond reflections.",
+                    "vibes": ["calm", "natural", "serene"],
+                },
+            },
+            "ART003": {
+                "title": "The Scream",
+                "ai_meta": {
+                    "description": "Existential anguish on a bridge.",
+                    "vibes": ["anxious", "vivid", "dramatic"],
+                },
+            },
+        }}
         (tmp_data_dir / "artwork_meta.json").write_text(json.dumps(meta))
 
         respx.get("https://api.open-meteo.com/v1/forecast").mock(
@@ -327,23 +343,109 @@ class TestAtmosphere:
         )
 
         ai_resp = json.dumps({
-            "content_id": "ART001",
-            "curator_note": "A perfect match for this evening.",
-            "vibes_matched": ["dreamy", "nocturnal"],
+            "recommendations": [
+                {"content_id": "ART001", "curator_note": "A perfect match for this evening.", "vibes_matched": ["dreamy", "nocturnal"]},
+                {"content_id": "ART002", "curator_note": "Calm waters for a calm night.", "vibes_matched": ["calm", "serene"]},
+                {"content_id": "ART003", "curator_note": "Contrast the stillness outside.", "vibes_matched": ["vivid", "dramatic"]},
+            ]
         })
         respx.post("https://api.anthropic.com/v1/messages").mock(
             return_value=httpx.Response(200, json={
                 "content": [{"text": ai_resp}],
-                "usage": {"input_tokens": 200, "output_tokens": 50},
+                "usage": {"input_tokens": 200, "output_tokens": 150},
             })
         )
 
         resp = await client.post("/api/atmosphere", json={"lat": 40.7, "lng": -74.0})
         assert resp.status_code == 200
         data = resp.json()
-        assert data["content_id"] == "ART001"
-        assert "curator_note" in data
+        assert "recommendations" in data
+        assert len(data["recommendations"]) == 3
+        assert data["recommendations"][0]["content_id"] == "ART001"
+        assert "curator_note" in data["recommendations"][0]
         assert "weather" in data
+
+        # Verify history was recorded
+        history = json.loads((tmp_data_dir / "atmosphere_history.json").read_text())
+        assert len(history["recommendations"]) == 3
+
+    @respx.mock
+    async def test_fallback_padding(self, client, seed_ai_config, tmp_data_dir):
+        """If LLM returns fewer than 3 valid picks, pad to 3."""
+        seed_ai_config(claude={"api_key": "sk-ant-test-key-1234ZgAA"})
+        meta = {"artwork": {
+            "ART001": {"title": "Starry Night", "ai_meta": {"description": "Sky.", "vibes": ["dreamy"]}},
+            "ART002": {"title": "Water Lilies", "ai_meta": {"description": "Pond.", "vibes": ["calm"]}},
+            "ART003": {"title": "The Scream", "ai_meta": {"description": "Bridge.", "vibes": ["anxious"]}},
+        }}
+        (tmp_data_dir / "artwork_meta.json").write_text(json.dumps(meta))
+
+        respx.get("https://api.open-meteo.com/v1/forecast").mock(
+            return_value=httpx.Response(200, json={
+                "current": {"temperature_2m": 20, "relative_humidity_2m": 50, "weather_code": 0, "is_day": 1, "wind_speed_10m": 3},
+                "current_units": {"temperature_2m": "°C", "wind_speed_10m": "km/h"},
+            })
+        )
+        respx.get(url__startswith="https://api.weather.gov/").mock(return_value=httpx.Response(500))
+
+        # LLM returns only 1 valid pick
+        ai_resp = json.dumps({"recommendations": [
+            {"content_id": "ART001", "curator_note": "Only one.", "vibes_matched": ["dreamy"]},
+        ]})
+        respx.post("https://api.anthropic.com/v1/messages").mock(
+            return_value=httpx.Response(200, json={
+                "content": [{"text": ai_resp}],
+                "usage": {"input_tokens": 100, "output_tokens": 50},
+            })
+        )
+
+        resp = await client.post("/api/atmosphere", json={"lat": 40.7, "lng": -74.0})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["recommendations"]) == 3
+        assert data["recommendations"][0]["content_id"] == "ART001"
+        # Padded entries should have curator notes
+        for rec in data["recommendations"]:
+            assert "curator_note" in rec
+            assert "content_id" in rec
+
+    @respx.mock
+    async def test_history_persistence(self, client, seed_ai_config, tmp_data_dir):
+        """Verify atmosphere history JSON is written and accumulates."""
+        seed_ai_config(claude={"api_key": "sk-ant-test-key-1234ZgAA"})
+        meta = {"artwork": {
+            "A1": {"title": "Art 1", "ai_meta": {"description": "D1.", "vibes": ["v1"]}},
+            "A2": {"title": "Art 2", "ai_meta": {"description": "D2.", "vibes": ["v2"]}},
+            "A3": {"title": "Art 3", "ai_meta": {"description": "D3.", "vibes": ["v3"]}},
+        }}
+        (tmp_data_dir / "artwork_meta.json").write_text(json.dumps(meta))
+
+        respx.get("https://api.open-meteo.com/v1/forecast").mock(
+            return_value=httpx.Response(200, json={
+                "current": {"temperature_2m": 22, "relative_humidity_2m": 40, "weather_code": 1, "is_day": 1, "wind_speed_10m": 8},
+                "current_units": {"temperature_2m": "°C", "wind_speed_10m": "km/h"},
+            })
+        )
+        respx.get(url__startswith="https://api.weather.gov/").mock(return_value=httpx.Response(500))
+
+        ai_resp = json.dumps({"recommendations": [
+            {"content_id": "A1", "curator_note": "Note 1.", "vibes_matched": ["v1"]},
+            {"content_id": "A2", "curator_note": "Note 2.", "vibes_matched": ["v2"]},
+            {"content_id": "A3", "curator_note": "Note 3.", "vibes_matched": ["v3"]},
+        ]})
+        respx.post("https://api.anthropic.com/v1/messages").mock(
+            return_value=httpx.Response(200, json={
+                "content": [{"text": ai_resp}],
+                "usage": {"input_tokens": 100, "output_tokens": 100},
+            })
+        )
+
+        assert not (tmp_data_dir / "atmosphere_history.json").exists()
+        await client.post("/api/atmosphere", json={"lat": 51.5, "lng": -0.1})
+
+        history = json.loads((tmp_data_dir / "atmosphere_history.json").read_text())
+        assert len(history["recommendations"]) == 3
+        assert all("timestamp" in r for r in history["recommendations"])
 
     async def test_no_analyzed_artwork_400(self, client, seed_ai_config):
         seed_ai_config(claude={"api_key": "sk-ant-test-key-1234ZgAA"})

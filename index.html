@@ -1650,7 +1650,7 @@
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 32px;
-    max-width: 480px;
+    max-width: 820px;
     width: 90vw;
     text-align: center;
   }
@@ -1671,51 +1671,85 @@
   }
   .atmosphere-weather .desc { font-style: italic; }
 
-  .atmosphere-artwork-img {
-    width: 100%;
-    max-height: 280px;
-    object-fit: contain;
-    border-radius: 8px;
-    margin: 16px 0;
-    opacity: 0;
-    transform: scale(0.95);
-    transition: opacity 0.8s ease, transform 0.8s ease;
+  .atmosphere-picks {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
   }
-  .atmosphere-artwork-img.revealed { opacity: 1; transform: scale(1); }
 
-  .atmosphere-title {
+  .atmosphere-pick-card {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  .atmosphere-pick-card.revealed {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .atmosphere-pick-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-pop);
+  }
+  .atmosphere-pick-card.top-pick {
+    border-top: 3px solid var(--accent);
+  }
+
+  .atmosphere-pick-card .pick-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+
+  .atmosphere-pick-card .pick-img {
+    width: 100%;
+    max-height: 200px;
+    object-fit: contain;
+    border-radius: 6px;
+    margin-bottom: 12px;
+    background: var(--color-parchment);
+  }
+
+  .atmosphere-pick-card .pick-title {
     font-family: var(--font-display);
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 400;
     color: var(--text);
-    margin-top: 8px;
-    opacity: 0;
-    transition: opacity 0.6s ease 0.2s;
+    margin-bottom: 8px;
   }
-  .atmosphere-title.revealed { opacity: 1; }
 
-  .atmosphere-note {
+  .atmosphere-pick-card .pick-note {
     font-family: var(--font-display);
     font-style: italic;
-    font-size: 15px;
-    color: var(--text);
-    line-height: 1.6;
-    margin: 16px 0;
-    opacity: 0;
-    transition: opacity 0.6s ease 0.4s;
+    font-size: 13px;
+    color: var(--text2);
+    line-height: 1.5;
+    margin-bottom: 10px;
+    flex: 1;
   }
-  .atmosphere-note.revealed { opacity: 1; }
 
-  .atmosphere-vibes {
+  .atmosphere-pick-card .pick-vibes {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 4px;
     justify-content: center;
-    margin: 12px 0;
-    opacity: 0;
-    transition: opacity 0.6s ease 0.6s;
+    margin-bottom: 12px;
   }
-  .atmosphere-vibes.revealed { opacity: 1; }
+
+  .atmosphere-pick-card .pick-display-btn {
+    margin-top: auto;
+  }
 
   .atmosphere-actions {
     display: flex;
@@ -1726,6 +1760,16 @@
     transition: opacity 0.4s ease 0.8s;
   }
   .atmosphere-actions.revealed { opacity: 1; }
+
+  .atmosphere-explored {
+    font-size: 12px;
+    color: var(--text3);
+    text-align: center;
+    margin-top: 12px;
+    opacity: 0;
+    transition: opacity 0.4s ease 0.8s;
+  }
+  .atmosphere-explored.revealed { opacity: 1; }
 
   .atmosphere-loading-text {
     color: var(--text2);
@@ -1754,6 +1798,12 @@
     outline: none;
   }
   .atmosphere-location-input input:focus { border-color: var(--accent); }
+
+  @media (max-width: 600px) {
+    .atmosphere-content { padding: 20px; }
+    .atmosphere-picks { flex-direction: column; }
+    .atmosphere-pick-card .pick-img { max-height: 160px; }
+  }
 
   /* Entrance animation */
   @keyframes gallery-entrance {
@@ -2043,13 +2093,10 @@
       </div>
       <div id="atmosphereReveal" style="display:none">
         <div class="atmosphere-weather" id="atmosphereWeather"></div>
-        <img class="atmosphere-artwork-img" id="atmosphereImg" src="" alt="">
-        <div class="atmosphere-title" id="atmosphereTitle"></div>
-        <div class="atmosphere-note" id="atmosphereNote"></div>
-        <div class="atmosphere-vibes" id="atmosphereVibes"></div>
+        <div class="atmosphere-picks" id="atmospherePicks"></div>
+        <div class="atmosphere-explored" id="atmosphereExplored"></div>
         <div class="atmosphere-actions" id="atmosphereActions">
-          <button class="primary" onclick="atmosphereDisplay()" title="Show recommended artwork on your Frame TV">Display on Frame</button>
-          <button onclick="atmosphereRetry()" title="Get a different recommendation">Try Again</button>
+          <button onclick="atmosphereRetry()" title="Get different recommendations">Try Again</button>
           <button onclick="closeAtmosphere()" title="Close Atmosphere">Close</button>
         </div>
       </div>
@@ -4352,8 +4399,20 @@
     }
 
     async function openAtmosphere(excludeIds) {
-      if (excludeIds) atmosphereExcluded = excludeIds;
-      else atmosphereExcluded = [];
+      if (excludeIds) {
+        atmosphereExcluded = excludeIds;
+      } else {
+        // Restore from localStorage if available
+        try {
+          const stored = JSON.parse(localStorage.getItem('docent_atmosphere_excluded'));
+          if (stored && stored.expires > Date.now() && Array.isArray(stored.ids)) {
+            atmosphereExcluded = stored.ids;
+          } else {
+            atmosphereExcluded = [];
+            localStorage.removeItem('docent_atmosphere_excluded');
+          }
+        } catch { atmosphereExcluded = []; }
+      }
 
       const modal = document.getElementById('atmosphereModal');
       const loading = document.getElementById('atmosphereLoading');
@@ -4422,64 +4481,107 @@
       const reveal = document.getElementById('atmosphereReveal');
       reveal.style.display = 'block';
 
+      // Shared weather header
       const w = data.weather;
       const timeIcon = w.is_day ? '\u2600' : '\u263E';
       document.getElementById('atmosphereWeather').innerHTML =
         `<span class="temp">${Math.round(w.temp)}${esc(w.temp_unit)}</span><span class="desc">${timeIcon} ${esc(w.description)}</span>`;
 
-      const img = document.getElementById('atmosphereImg');
-      img.classList.remove('revealed');
-      img.src = thumbCache[data.content_id] || `/api/thumbnail/${data.content_id}`;
-      img.alt = data.artwork_title || '';
+      // Build 3 pick cards
+      const picks = document.getElementById('atmospherePicks');
+      picks.innerHTML = '';
 
-      const atmArtist = artworkMeta[data.content_id]?.ai_meta?.artist;
-      const atmSearch = atmArtist ? `${data.artwork_title} ${atmArtist}` : data.artwork_title;
-      const atmUrl = 'https://en.wikipedia.org/w/index.php?search=' + encodeURIComponent(atmSearch);
-      const atmTitle = (data.artwork_title || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-      document.getElementById('atmosphereTitle').innerHTML = atmTitle
-        ? `<a class="wiki-link" href="${atmUrl}" target="_blank" rel="noopener noreferrer" title="Look up ${atmTitle} on Wikipedia">${atmTitle}</a>`
-        : '';
-      document.getElementById('atmosphereTitle').classList.remove('revealed');
-      document.getElementById('atmosphereNote').textContent = data.curator_note;
-      document.getElementById('atmosphereNote').classList.remove('revealed');
+      const recs = data.recommendations || [];
+      recs.forEach((rec, i) => {
+        const card = document.createElement('div');
+        card.className = 'atmosphere-pick-card' + (i === 0 ? ' top-pick' : '');
 
-      document.getElementById('atmosphereVibes').innerHTML =
-        (data.vibes_matched || []).map(v => `<span class="vibe-pill">${v}</span>`).join('');
-      document.getElementById('atmosphereVibes').classList.remove('revealed');
+        const atmArtist = artworkMeta[rec.content_id]?.ai_meta?.artist;
+        const atmSearch = atmArtist ? `${rec.artwork_title} ${atmArtist}` : rec.artwork_title;
+        const atmUrl = 'https://en.wikipedia.org/w/index.php?search=' + encodeURIComponent(atmSearch);
+        const safeTitle = (rec.artwork_title || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+        const imgSrc = thumbCache[rec.content_id] || `/api/thumbnail/${rec.content_id}`;
+        const vibesHtml = (rec.vibes_matched || []).map(v => `<span class="vibe-pill">${esc(v)}</span>`).join('');
+        const titleHtml = safeTitle
+          ? `<a class="wiki-link" href="${atmUrl}" target="_blank" rel="noopener noreferrer" title="Look up ${safeTitle} on Wikipedia">${safeTitle}</a>`
+          : '';
+
+        card.innerHTML =
+          (i === 0 ? '<div class="pick-label">Curator\'s pick</div>' : '') +
+          `<img class="pick-img" src="${imgSrc}" alt="${safeTitle}" loading="lazy">` +
+          `<div class="pick-title">${titleHtml}</div>` +
+          `<div class="pick-note">${esc(rec.curator_note || '')}</div>` +
+          `<div class="pick-vibes">${vibesHtml}</div>` +
+          `<div class="pick-display-btn"><button class="primary" onclick="atmosphereDisplay(${i})" title="Show on Frame TV">Display</button></div>`;
+
+        picks.appendChild(card);
+      });
+
+      // Explored counter
+      const analyzed = Object.values(artworkMeta).filter(m => m.ai_meta && m.ai_meta.vibes && m.ai_meta.vibes.length);
+      const explored = document.getElementById('atmosphereExplored');
+      explored.textContent = `Explored ${atmosphereExcluded.length} of ${analyzed.length} artworks`;
+      explored.classList.remove('revealed');
+
       document.getElementById('atmosphereActions').classList.remove('revealed');
 
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        img.classList.add('revealed');
-        document.getElementById('atmosphereTitle').classList.add('revealed');
-        document.getElementById('atmosphereNote').classList.add('revealed');
-        document.getElementById('atmosphereVibes').classList.add('revealed');
-        document.getElementById('atmosphereActions').classList.add('revealed');
-      }));
+      // Staggered reveal
+      recs.forEach((_, i) => {
+        const card = picks.children[i];
+        if (!card) return;
+        setTimeout(() => {
+          requestAnimationFrame(() => card.classList.add('revealed'));
+        }, i * 150);
+      });
+      setTimeout(() => {
+        requestAnimationFrame(() => {
+          document.getElementById('atmosphereActions').classList.add('revealed');
+          explored.classList.add('revealed');
+        });
+      }, recs.length * 150 + 200);
     }
 
-    async function atmosphereDisplay() {
-      if (!atmosphereResult) return;
+    async function atmosphereDisplay(index) {
+      if (!atmosphereResult || !atmosphereResult.recommendations) return;
+      const rec = atmosphereResult.recommendations[index];
+      if (!rec) return;
       try {
-        await api('/select', { method: 'POST', body: { content_id: atmosphereResult.content_id } });
-        currentId = atmosphereResult.content_id;
+        await api('/select', { method: 'POST', body: { content_id: rec.content_id } });
+        currentId = rec.content_id;
         renderGrid();
         _updateCurrentCardObserver();
-        toast(`Now displaying: ${atmosphereResult.artwork_title}`, 'success');
+        toast(`Now displaying: ${rec.artwork_title}`, 'success');
         closeAtmosphere();
       } catch (e) {
         toast('Failed to display: ' + e.message, 'error');
       }
     }
 
+    function _saveAtmosphereExcluded() {
+      try {
+        localStorage.setItem('docent_atmosphere_excluded', JSON.stringify({
+          ids: atmosphereExcluded,
+          expires: Date.now() + 86400000,
+        }));
+      } catch { /* localStorage unavailable */ }
+    }
+
     function atmosphereRetry() {
-      if (atmosphereResult) {
-        atmosphereExcluded.push(atmosphereResult.content_id);
+      if (atmosphereResult && atmosphereResult.recommendations) {
+        atmosphereResult.recommendations.forEach(r => {
+          if (!atmosphereExcluded.includes(r.content_id)) {
+            atmosphereExcluded.push(r.content_id);
+          }
+        });
       }
       const analyzed = Object.values(artworkMeta).filter(m => m.ai_meta && m.ai_meta.vibes && m.ai_meta.vibes.length);
       if (atmosphereExcluded.length >= analyzed.length) {
         atmosphereExcluded = [];
+        localStorage.removeItem('docent_atmosphere_excluded');
         toast('Starting fresh \u2014 all artwork considered again', 'info');
       }
+      _saveAtmosphereExcluded();
       openAtmosphere(atmosphereExcluded);
     }
 
@@ -4498,7 +4600,6 @@
 
     function closeAtmosphere() {
       document.getElementById('atmosphereModal').classList.remove('active');
-      atmosphereExcluded = [];
       atmosphereLatLng = null;
     }
 
