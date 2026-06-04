@@ -2306,9 +2306,10 @@ async def atmosphere(body: dict):
             # Backward compat: LLM returned old single-pick format
             raw_recs = [parsed]
 
+        used_ids = set()
         for rec in raw_recs:
-            if rec.get("content_id") in valid_ids and len(recommendations) < 3:
-                cid = rec["content_id"]
+            cid = rec.get("content_id")
+            if cid in valid_ids and cid not in used_ids and len(recommendations) < 3:
                 picked = next(c for c in eligible if c["content_id"] == cid)
                 recommendations.append({
                     "content_id": cid,
@@ -2316,9 +2317,9 @@ async def atmosphere(body: dict):
                     "curator_note": rec.get("curator_note", ""),
                     "vibes_matched": rec.get("vibes_matched", []),
                 })
+                used_ids.add(cid)
 
         # Pad to 3 if LLM returned fewer valid picks
-        used_ids = {r["content_id"] for r in recommendations}
         remaining = [c for c in eligible if c["content_id"] not in used_ids]
         random.shuffle(remaining)
         while len(recommendations) < 3 and remaining:

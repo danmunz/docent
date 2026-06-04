@@ -410,6 +410,45 @@ class TestAtmosphere:
             assert "content_id" in rec
 
     @respx.mock
+    async def test_dedup_repeated_ids(self, client, seed_ai_config, tmp_data_dir):
+        """LLM returns the same content_id twice; response should deduplicate and pad."""
+        seed_ai_config(claude={"api_key": "sk-ant-test-key-1234ZgAA"})
+        meta = {"artwork": {
+            "A1": {"title": "Art 1", "ai_meta": {"description": "D1.", "vibes": ["v1"]}},
+            "A2": {"title": "Art 2", "ai_meta": {"description": "D2.", "vibes": ["v2"]}},
+            "A3": {"title": "Art 3", "ai_meta": {"description": "D3.", "vibes": ["v3"]}},
+        }}
+        (tmp_data_dir / "artwork_meta.json").write_text(json.dumps(meta))
+
+        respx.get("https://api.open-meteo.com/v1/forecast").mock(
+            return_value=httpx.Response(200, json={
+                "current": {"temperature_2m": 18, "relative_humidity_2m": 50, "weather_code": 0, "is_day": 1, "wind_speed_10m": 5},
+                "current_units": {"temperature_2m": "°C", "wind_speed_10m": "km/h"},
+            })
+        )
+        respx.get(url__startswith="https://api.weather.gov/").mock(return_value=httpx.Response(500))
+
+        # LLM returns A1 twice — second occurrence should be skipped
+        ai_resp = json.dumps({"recommendations": [
+            {"content_id": "A1", "curator_note": "First.", "vibes_matched": ["v1"]},
+            {"content_id": "A1", "curator_note": "Duplicate.", "vibes_matched": ["v1"]},
+            {"content_id": "A2", "curator_note": "Second.", "vibes_matched": ["v2"]},
+        ]})
+        respx.post("https://api.anthropic.com/v1/messages").mock(
+            return_value=httpx.Response(200, json={
+                "content": [{"text": ai_resp}],
+                "usage": {"input_tokens": 100, "output_tokens": 100},
+            })
+        )
+
+        resp = await client.post("/api/atmosphere", json={"lat": 40.7, "lng": -74.0})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["recommendations"]) == 3
+        ids = [r["content_id"] for r in data["recommendations"]]
+        assert len(set(ids)) == 3, f"Expected 3 unique IDs, got {ids}"
+
+    @respx.mock
     async def test_history_persistence(self, client, seed_ai_config, tmp_data_dir):
         """Verify atmosphere history JSON is written and accumulates."""
         seed_ai_config(claude={"api_key": "sk-ant-test-key-1234ZgAA"})
