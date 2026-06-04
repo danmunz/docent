@@ -26,6 +26,7 @@ def tmp_data_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(server, "AI_CONFIG_FILE", tmp_path / "ai_config.json")
     monkeypatch.setattr(server, "API_USAGE_FILE", tmp_path / "api_usage.json")
     monkeypatch.setattr(server, "DRIVE_SYNC_FILE", tmp_path / "drive_sync.json")
+    monkeypatch.setattr(server, "ATMOSPHERE_HISTORY_FILE", tmp_path / "atmosphere_history.json")
     monkeypatch.setattr(server, "TOKEN_FILE", tmp_path / ".tv-token")
 
     monkeypatch.setattr(server, "_art_cache", None)

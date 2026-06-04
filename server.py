@@ -6,6 +6,7 @@ import io
 import json
 import logging
 import os
+import random
 import re
 import socket
 import tempfile
@@ -53,6 +54,8 @@ ARTWORK_META_FILE = DATA_DIR / "artwork_meta.json"
 AI_CONFIG_FILE = DATA_DIR / "ai_config.json"
 API_USAGE_FILE = DATA_DIR / "api_usage.json"
 DRIVE_SYNC_FILE = DATA_DIR / "drive_sync.json"
+ATMOSPHERE_HISTORY_FILE = DATA_DIR / "atmosphere_history.json"
+ATMOSPHERE_HISTORY_MAX = 200
 
 
 def _safe_load_json(path: Path, default_factory) -> dict:
@@ -1228,6 +1231,43 @@ MODEL_PRICING = {
 }
 
 
+# --- Atmosphere recommendation history ---
+
+def _load_atmosphere_history() -> dict:
+    return _safe_load_json(ATMOSPHERE_HISTORY_FILE, lambda: {"recommendations": []})
+
+
+def _save_atmosphere_history(data: dict) -> None:
+    _atomic_write_json(ATMOSPHERE_HISTORY_FILE, data)
+
+
+def _record_atmosphere_recommendations(content_ids: list) -> None:
+    data = _load_atmosphere_history()
+    now = datetime.now(timezone.utc).isoformat()
+    for cid in content_ids:
+        data["recommendations"].append({"content_id": cid, "timestamp": now})
+    # Prune to max entries
+    if len(data["recommendations"]) > ATMOSPHERE_HISTORY_MAX:
+        data["recommendations"] = data["recommendations"][-ATMOSPHERE_HISTORY_MAX:]
+    _save_atmosphere_history(data)
+
+
+def _get_recent_recommendation_counts(days: int = 7) -> dict[str, int]:
+    """Count recommendations per content_id in the last N days."""
+    data = _load_atmosphere_history()
+    cutoff = datetime.now(timezone.utc).timestamp() - (days * 86400)
+    counts: dict[str, int] = {}
+    for rec in data.get("recommendations", []):
+        try:
+            ts = datetime.fromisoformat(rec["timestamp"]).timestamp()
+        except (KeyError, ValueError):
+            continue
+        if ts >= cutoff:
+            cid = rec["content_id"]
+            counts[cid] = counts.get(cid, 0) + 1
+    return counts
+
+
 def _load_api_usage() -> dict:
     return _safe_load_json(API_USAGE_FILE, lambda: {"monthly": {}})
 
@@ -2111,13 +2151,19 @@ Current weather:
 Available artwork:
 {candidates}
 {exclusion_clause}
-Pick exactly one artwork whose vibes best resonate with this weather and moment. Write a curator_note under 40 words — evocative, not clinical, like a gallery wall label connecting the atmosphere outside to the feeling of the piece.
+Pick exactly 3 artworks whose vibes resonate with this weather and moment. Rank them — your top pick first.
+
+Don't just match mood literally. A sunny day might call for a cool interior scene as contrast. A rainy evening might pair beautifully with a warm domestic painting. Surprise the viewer with unexpected but resonant connections.
+
+For each, write a curator_note under 40 words — evocative, not clinical, like a gallery wall label connecting the atmosphere outside to the feeling of the piece.
 
 Respond with ONLY this JSON:
 {{
-  "content_id": "THE_ID",
-  "curator_note": "Your poetic note here",
-  "vibes_matched": ["vibe1", "vibe2"]
+  "recommendations": [
+    {{"content_id": "ID_1", "curator_note": "Note 1", "vibes_matched": ["vibe1", "vibe2"]}},
+    {{"content_id": "ID_2", "curator_note": "Note 2", "vibes_matched": ["vibe1", "vibe2"]}},
+    {{"content_id": "ID_3", "curator_note": "Note 3", "vibes_matched": ["vibe1", "vibe2"]}}
+  ]
 }}"""
 
 
@@ -2160,13 +2206,37 @@ async def atmosphere(body: dict):
     if not eligible:
         eligible = candidates
 
+    # Frequency-weighted pre-filter: sample ~20 with inverse-frequency weighting
+    recent_counts = _get_recent_recommendation_counts(days=7)
+    if len(eligible) > 20:
+        weights = [1.0 / (1 + recent_counts.get(c["content_id"], 0)) for c in eligible]
+        sampled = random.choices(eligible, weights=weights, k=20)
+        # Deduplicate while preserving order
+        seen_ids: set[str] = set()
+        eligible = []
+        for c in sampled:
+            if c["content_id"] not in seen_ids:
+                seen_ids.add(c["content_id"])
+                eligible.append(c)
+
+    # Shuffle to eliminate insertion-order bias in LLM context
+    random.shuffle(eligible)
+
+    # Build stronger exclusion clause from history
+    history_ids = [cid for cid, count in recent_counts.items() if count >= 2]
+    exclusion_clause = ""
+    if exclude_ids or history_ids:
+        parts = []
+        if exclude_ids:
+            parts.append(f"The viewer has already seen these this session — do NOT pick them: {', '.join(exclude_ids)}")
+        if history_ids:
+            parts.append(f"These were recently suggested — strongly avoid: {', '.join(history_ids[:15])}")
+        exclusion_clause = "\n" + "\n".join(parts) + "\n"
+
     candidate_lines = "\n".join(
         f"- {c['content_id']}: \"{c['title']}\" — {c['description']} | Vibes: {', '.join(c['vibes'])}"
         for c in eligible
     )
-    exclusion_clause = ""
-    if exclude_ids:
-        exclusion_clause = f"\nThe viewer has already seen these suggestions — choose something different: {', '.join(exclude_ids)}\n"
 
     prompt = ATMOSPHERE_PROMPT.format(
         description=weather["description"],
@@ -2189,7 +2259,8 @@ async def atmosphere(body: dict):
                 },
                 json={
                     "model": model,
-                    "max_tokens": 256,
+                    "max_tokens": 600,
+                    "temperature": 0.9,
                     "messages": [{"role": "user", "content": prompt}],
                 },
             )
@@ -2210,7 +2281,8 @@ async def atmosphere(body: dict):
                 },
                 json={
                     "model": model,
-                    "max_tokens": 256,
+                    "max_tokens": 600,
+                    "temperature": 0.9,
                     "messages": [{"role": "user", "content": prompt}],
                 },
             )
@@ -2224,23 +2296,57 @@ async def atmosphere(body: dict):
         parsed = _parse_ai_response(text)
 
         valid_ids = {c["content_id"] for c in eligible}
-        if not parsed or parsed.get("content_id") not in valid_ids:
-            fallback = eligible[0]
-            parsed = {
-                "content_id": fallback["content_id"],
-                "curator_note": "A fitting choice for this moment.",
-                "vibes_matched": fallback["vibes"][:2],
-            }
+        recommendations = []
 
-        picked_id = parsed["content_id"]
-        picked = next(c for c in eligible if c["content_id"] == picked_id)
+        # Extract recommendations from parsed response
+        raw_recs = []
+        if parsed and "recommendations" in parsed:
+            raw_recs = parsed["recommendations"]
+        elif parsed and "content_id" in parsed:
+            # Backward compat: LLM returned old single-pick format
+            raw_recs = [parsed]
+
+        used_ids = set()
+        for rec in raw_recs:
+            cid = rec.get("content_id")
+            if cid in valid_ids and cid not in used_ids and len(recommendations) < 3:
+                picked = next(c for c in eligible if c["content_id"] == cid)
+                recommendations.append({
+                    "content_id": cid,
+                    "artwork_title": picked["title"],
+                    "curator_note": rec.get("curator_note", ""),
+                    "vibes_matched": rec.get("vibes_matched", []),
+                })
+                used_ids.add(cid)
+
+        # Pad to 3 if LLM returned fewer valid picks
+        remaining = [c for c in eligible if c["content_id"] not in used_ids]
+        random.shuffle(remaining)
+        while len(recommendations) < 3 and remaining:
+            pad = remaining.pop(0)
+            recommendations.append({
+                "content_id": pad["content_id"],
+                "artwork_title": pad["title"],
+                "curator_note": "A fitting choice for this moment.",
+                "vibes_matched": pad["vibes"][:2],
+            })
+
+        # If still fewer than 3 (very small catalog), pad from eligible
+        if not recommendations:
+            fb = eligible[0]
+            recommendations.append({
+                "content_id": fb["content_id"],
+                "artwork_title": fb["title"],
+                "curator_note": "A fitting choice for this moment.",
+                "vibes_matched": fb["vibes"][:2],
+            })
+
+        # Record recommendations to history
+        _record_atmosphere_recommendations([r["content_id"] for r in recommendations])
 
         return {
-            "content_id": picked_id,
-            "artwork_title": picked["title"],
+            "recommendations": recommendations,
             "weather": weather,
-            "curator_note": parsed.get("curator_note", ""),
-            "vibes_matched": parsed.get("vibes_matched", []),
         }
 
 

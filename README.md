@@ -32,7 +32,7 @@ Docent is a local web app that puts art on your TV. Drop an image in, press **"D
 - Dynamic favicon that recolors to match the currently displayed artwork
 - AI art analysis — two-stage pipeline using Google Vision for identification and Claude or OpenAI for rich analysis (artist, title, year, medium, movement, mood)
 - Wikipedia integration — every metadata field (artist, school, medium, year, title) links to Wikipedia; group headers when sorted by artist or movement become entry points too
-- Atmosphere — weather-aware recommendations that match artwork mood to local conditions, with a poetic curator's note
+- Atmosphere — weather-aware recommendations that present three curated picks matched to local conditions, with poetic curator's notes and a variety engine that avoids repeats
 - Google Drive sync — import artwork from a shared folder
 - Art Mode toggle, brightness/color temperature controls, and slideshow configuration
 - API usage tracking with per-model token counts and cost estimates
@@ -116,7 +116,9 @@ Rough monthly example with Sonnet 4: upload 20 images (~4c), daily Atmosphere fo
 
 ## Atmosphere
 
-Click the cloud icon in the header. Docent reads your local weather via browser geolocation and the National Weather Service API (with Open-Meteo as fallback), matches it against your gallery's mood metadata, and suggests a piece with a short curator's note. The artwork title links to Wikipedia so you can keep reading. Click "Try Again" for a different recommendation.
+Click the cloud icon in the header. Docent reads your local weather via browser geolocation and the National Weather Service API (with Open-Meteo as fallback), matches it against your gallery's mood metadata, and presents three curated picks — each with a short curator's note. The top recommendation is marked "Curator's pick." Artwork titles link to Wikipedia so you can keep reading.
+
+Click "Display" on any card to send it to your Frame. Click "Try Again" to exclude all three and get fresh suggestions. Exclusions persist for 24 hours via localStorage, so reopening the modal continues where you left off. A variety engine tracks recommendation history and weights candidates to avoid repeating the same picks across sessions.
 
 ## Learn More Links
 

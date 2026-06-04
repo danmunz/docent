@@ -58,17 +58,9 @@ class TestXssPrevention:
 
     def test_atmosphere_title_escapes_quotes(self, js_source):
         # The title used in href/title attributes must escape quotes
-        # Look for the atmosphere title construction
-        atm_section = re.search(
-            r"atmosphereTitle.*?innerHTML\s*=\s*(.*?)$",
-            js_source,
-            re.MULTILINE,
-        )
-        assert atm_section, "Cannot find atmosphereTitle innerHTML assignment"
-        # Title should escape single quotes for attributes
-        # Check that the atmTitle variable escapes both " and '
-        title_escape = re.search(
-            r"""replace\(/['"]\/g""", js_source
+        # Look for the atmosphere title construction (safeTitle in pick cards)
+        assert re.search(r'safeTitle.*replace\(', js_source) or re.search(r'atmTitle.*replace\(', js_source), (
+            "Cannot find atmosphere title escape logic"
         )
         # At minimum, double quotes must be escaped (which we verified exists)
         assert re.search(r'replace\(.*/.*&quot;', js_source), (
