@@ -204,19 +204,60 @@ class TestArtworkMeta:
         resp = await client.get("/api/artwork-meta")
         assert resp.json()["artwork"]["ID1"]["title"] == "Starry Night"
 
-    async def test_put_creates_entry(self, client):
-        resp = await client.put("/api/artwork-meta/NEW1", json={"title": "Test Art", "width": 1920})
+    async def test_put_updates_title(self, client, tmp_data_dir):
+        meta = {"artwork": {"ART1": {"title": "Old Title"}}}
+        (tmp_data_dir / "artwork_meta.json").write_text(json.dumps(meta))
+        resp = await client.put("/api/artwork-meta/ART1", json={"title": "New Title"})
         assert resp.status_code == 200
-        assert resp.json()["meta"]["title"] == "Test Art"
-        assert resp.json()["meta"]["width"] == 1920
+        assert resp.json()["meta"]["title"] == "New Title"
+
+    async def test_put_unknown_id_returns_404(self, client):
+        resp = await client.put("/api/artwork-meta/NONEXISTENT", json={"title": "X"})
+        assert resp.status_code == 404
 
     async def test_put_empty_title_skipped(self, client, tmp_data_dir):
         meta = {"artwork": {"ID1": {"title": "Keep This"}}}
         (tmp_data_dir / "artwork_meta.json").write_text(json.dumps(meta))
-        await client.put("/api/artwork-meta/ID1", json={"title": "  ", "width": 100})
+        await client.put("/api/artwork-meta/ID1", json={"title": "  "})
         loaded = server._load_artwork_meta()
         assert loaded["artwork"]["ID1"]["title"] == "Keep This"
-        assert loaded["artwork"]["ID1"]["width"] == 100
+
+    async def test_user_meta_stored_separately(self, client, tmp_data_dir):
+        ai = {"title": "Starry Night", "artist": "Van Gogh", "year": "1889"}
+        meta = {"artwork": {"ART1": {"title": "Starry Night", "ai_meta": ai}}}
+        (tmp_data_dir / "artwork_meta.json").write_text(json.dumps(meta))
+        resp = await client.put("/api/artwork-meta/ART1", json={"user_meta": {"artist": "My Friend"}})
+        assert resp.status_code == 200
+        saved = server._load_artwork_meta()
+        assert saved["artwork"]["ART1"]["user_meta"]["artist"] == "My Friend"
+        assert saved["artwork"]["ART1"]["ai_meta"]["artist"] == "Van Gogh"
+
+    async def test_user_meta_unknown_key_rejected(self, client, tmp_data_dir):
+        meta = {"artwork": {"ART1": {"title": "Test"}}}
+        (tmp_data_dir / "artwork_meta.json").write_text(json.dumps(meta))
+        resp = await client.put("/api/artwork-meta/ART1", json={"user_meta": {"garbage": "x"}})
+        assert resp.status_code == 400
+
+    async def test_user_meta_invalid_url_rejected(self, client, tmp_data_dir):
+        meta = {"artwork": {"ART1": {"title": "Test"}}}
+        (tmp_data_dir / "artwork_meta.json").write_text(json.dumps(meta))
+        for bad_url in ["javascript:alert(1)", "http://en.wikipedia.org/wiki/Test", "not-a-url"]:
+            resp = await client.put("/api/artwork-meta/ART1", json={"user_meta": {"wikipedia_url": bad_url}})
+            assert resp.status_code == 400, f"Expected 400 for {bad_url!r}"
+
+    async def test_user_meta_valid_url_accepted(self, client, tmp_data_dir):
+        meta = {"artwork": {"ART1": {"title": "Test"}}}
+        (tmp_data_dir / "artwork_meta.json").write_text(json.dumps(meta))
+        url = "https://en.wikipedia.org/wiki/Vincent_van_Gogh"
+        resp = await client.put("/api/artwork-meta/ART1", json={"user_meta": {"wikipedia_url": url}})
+        assert resp.status_code == 200
+        assert resp.json()["meta"]["user_meta"]["wikipedia_url"] == url
+
+    async def test_user_meta_non_string_value_rejected(self, client, tmp_data_dir):
+        meta = {"artwork": {"ART1": {"title": "Test"}}}
+        (tmp_data_dir / "artwork_meta.json").write_text(json.dumps(meta))
+        resp = await client.put("/api/artwork-meta/ART1", json={"user_meta": {"artist": 42}})
+        assert resp.status_code == 400
 
 
 # ---------------------------------------------------------------------------
