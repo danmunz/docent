@@ -1125,7 +1125,7 @@ async def update_artwork_meta(content_id: str, body: dict):
 # --- AI config ---
 
 def _load_ai_config() -> dict:
-    defaults = {"provider": "claude", "auto_analyze": False, "opus_fallback": False, "use_google_vision": True, "claude": {"api_key": "", "model": "claude-sonnet-4-20250514"}, "openai": {"api_key": "", "model": "gpt-4.1"}, "google_vision": {"api_key": ""}}
+    defaults = {"provider": "claude", "auto_analyze": False, "opus_fallback": False, "use_google_vision": True, "claude": {"api_key": "", "model": "claude-sonnet-4-6"}, "openai": {"api_key": "", "model": "gpt-4.1"}, "google_vision": {"api_key": ""}}
     saved = _safe_load_json(AI_CONFIG_FILE, lambda: None)
     if saved is None:
         return defaults
@@ -1221,9 +1221,9 @@ async def test_vision_key(body: dict | None = None):
 # --- API usage tracking ---
 
 MODEL_PRICING = {
-    "claude-sonnet-4-20250514": {"input_per_mtok": 3.0, "output_per_mtok": 15.0},
+    "claude-sonnet-4-6": {"input_per_mtok": 3.0, "output_per_mtok": 15.0},
     "claude-haiku-4-5-20251001": {"input_per_mtok": 0.80, "output_per_mtok": 4.0},
-    "claude-opus-4-20250514": {"input_per_mtok": 15.0, "output_per_mtok": 75.0},
+    "claude-opus-4-8": {"input_per_mtok": 15.0, "output_per_mtok": 75.0},
     "gpt-4.1": {"input_per_mtok": 2.0, "output_per_mtok": 8.0},
     "gpt-4.1-mini": {"input_per_mtok": 0.40, "output_per_mtok": 1.60},
     "gpt-4.1-nano": {"input_per_mtok": 0.10, "output_per_mtok": 0.40},
@@ -1463,7 +1463,7 @@ async def _analyze_artwork(content_id: str) -> dict:
         and "opus" not in model
     ):
         first_pass = parsed
-        opus_model = "claude-opus-4-20250514"
+        opus_model = "claude-opus-4-8"
         escalation = (
             f"A preliminary analysis identified this as: "
             f"school={first_pass.get('school', 'N/A')}, "
@@ -1762,8 +1762,8 @@ async def analyze_batch(body: dict):
 async def estimate_analysis(count: int = Query(...)):
     config = _load_ai_config()
     provider = config.get("provider", "claude")
-    model = config.get(provider, {}).get("model", "claude-sonnet-4-20250514")
-    pricing = MODEL_PRICING.get(model, MODEL_PRICING["claude-sonnet-4-20250514"])
+    model = config.get(provider, {}).get("model", "claude-sonnet-4-6")
+    pricing = MODEL_PRICING.get(model, MODEL_PRICING["claude-sonnet-4-6"])
 
     avg_input = 1600
     avg_output = 200
@@ -2180,7 +2180,7 @@ async def atmosphere(body: dict):
     provider = config.get("provider", "claude")
     provider_config = config.get(provider, {})
     api_key = provider_config.get("api_key", "")
-    model = provider_config.get("model", "claude-sonnet-4-20250514" if provider == "claude" else "gpt-4.1")
+    model = provider_config.get("model", "claude-sonnet-4-6" if provider == "claude" else "gpt-4.1")
     if not api_key:
         raise HTTPException(400, f"{provider.title()} API key not configured. Open Settings to add it.")
 
