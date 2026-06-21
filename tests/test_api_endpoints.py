@@ -211,9 +211,12 @@ class TestArtworkMeta:
         assert resp.status_code == 200
         assert resp.json()["meta"]["title"] == "New Title"
 
-    async def test_put_unknown_id_returns_404(self, client):
-        resp = await client.put("/api/artwork-meta/NONEXISTENT", json={"title": "X"})
-        assert resp.status_code == 404
+    async def test_put_creates_entry_for_gallery_art(self, client):
+        # Artwork that exists on the TV but not yet in artwork_meta.json
+        # (e.g. after a metadata file reset) must still be saveable.
+        resp = await client.put("/api/artwork-meta/GALLERY1", json={"title": "Found Art"})
+        assert resp.status_code == 200
+        assert resp.json()["meta"]["title"] == "Found Art"
 
     async def test_put_empty_title_skipped(self, client, tmp_data_dir):
         meta = {"artwork": {"ID1": {"title": "Keep This"}}}
@@ -241,7 +244,14 @@ class TestArtworkMeta:
     async def test_user_meta_invalid_url_rejected(self, client, tmp_data_dir):
         meta = {"artwork": {"ART1": {"title": "Test"}}}
         (tmp_data_dir / "artwork_meta.json").write_text(json.dumps(meta))
-        for bad_url in ["javascript:alert(1)", "http://en.wikipedia.org/wiki/Test", "not-a-url"]:
+        bad_urls = [
+            "javascript:alert(1)",
+            "http://en.wikipedia.org/wiki/Test",
+            "not-a-url",
+            'https://example.com/"onclick="alert(1)',   # quote injection
+            "https://example.com/'onmouseover='alert(1)",
+        ]
+        for bad_url in bad_urls:
             resp = await client.put("/api/artwork-meta/ART1", json={"user_meta": {"wikipedia_url": bad_url}})
             assert resp.status_code == 400, f"Expected 400 for {bad_url!r}"
 

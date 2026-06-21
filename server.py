@@ -281,7 +281,7 @@ def _validate_name(name: str, field: str = "name") -> str:
     return name
 
 
-_HTTPS_URL_RE = re.compile(r"^https://[^\s\x00-\x1f\x7f]{1,490}$")
+_HTTPS_URL_RE = re.compile(r'^https://[^\s\x00-\x1f\x7f"\'<>]{1,490}$')
 
 
 def _validate_url(value: str, field: str) -> str:
@@ -1125,7 +1125,7 @@ async def update_artwork_meta(content_id: str, body: dict):
     async with _meta_lock:
         data = _load_artwork_meta()
         if content_id not in data["artwork"]:
-            raise HTTPException(404, "Artwork not found")
+            data["artwork"][content_id] = {}
         entry = data["artwork"][content_id]
 
         if "title" in body:

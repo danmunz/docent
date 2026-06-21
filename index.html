@@ -2474,6 +2474,7 @@
     }
 
     function esc(s) { const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
+    function escAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;'); }
 
     const TOAST_ICONS = { success: '\u2713 ', error: '\u2717 ', info: '\u2139 ' };
     function toast(msg, type = 'info', duration = 3000) {
@@ -4334,7 +4335,7 @@
       const descVal = merged.description;
       const wikiUrl = um.wikipedia_url;
       const wikiRow = wikiUrl
-        ? `<div class="ai-meta-row"><span class="label">Wikipedia</span><span class="value user-override"><a class="wiki-link" href="${esc(wikiUrl)}" target="_blank" rel="noopener noreferrer">Open &#x2197;</a><span class="meta-override-dot" title="Edited by you">&#9679;</span></span></div>`
+        ? `<div class="ai-meta-row"><span class="label">Wikipedia</span><span class="value user-override"><a class="wiki-link" href="${escAttr(wikiUrl)}" target="_blank" rel="noopener noreferrer">Open &#x2197;</a><span class="meta-override-dot" title="Edited by you">&#9679;</span></span></div>`
         : '';
       const analyzeLabel = ai ? 'Re-analyze' : 'Analyze with AI';
       const analyzeTitle = ai ? 'Run AI analysis again' : 'Identify and analyze this artwork with AI';
@@ -4360,18 +4361,23 @@
       if (!detailItem) return;
       _metaEditLocked = false;
       const id = detailItem.content_id;
-      const merged = getMergedMeta(id);
+      const meta = artworkMeta[id] || {};
+      const um = meta.user_meta || {};
+      const ai = meta.ai_meta || {};
       const section = document.getElementById('aiMetaSection');
 
       const unlockBtn = `<button class="meta-lock-btn" onclick="lockMetaEdit()" title="Cancel editing">&#x1F513;</button>`;
       const header = `<div class="ai-meta-section-header"><h4>AI Analysis</h4>${unlockBtn}</div>`;
 
+      // Pre-fill from user_meta only; AI values appear as placeholder text so
+      // unedited fields stay AI-sourced and future re-analysis can update them.
       function editRow(label, key, type = 'input') {
-        const val = merged[key] || '';
+        const userVal = um[key] || '';
+        const aiVal = ai[key] || '';
         if (type === 'textarea') {
-          return `<div class="meta-edit-row"><span class="label">${label}</span><textarea id="meta-edit-${key}" class="meta-edit-textarea" rows="3">${esc(val)}</textarea></div>`;
+          return `<div class="meta-edit-row"><span class="label">${label}</span><textarea id="meta-edit-${key}" class="meta-edit-textarea" rows="3" placeholder="${escAttr(aiVal)}">${esc(userVal)}</textarea></div>`;
         }
-        return `<div class="meta-edit-row"><span class="label">${label}</span><input id="meta-edit-${key}" class="meta-edit-input" type="text" value="${esc(val)}" maxlength="200"></div>`;
+        return `<div class="meta-edit-row"><span class="label">${label}</span><input id="meta-edit-${key}" class="meta-edit-input" type="text" value="${escAttr(userVal)}" placeholder="${escAttr(aiVal)}" maxlength="200"></div>`;
       }
 
       section.innerHTML = `
