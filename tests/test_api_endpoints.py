@@ -205,18 +205,26 @@ class TestArtworkMeta:
         assert resp.json()["artwork"]["ID1"]["title"] == "Starry Night"
 
     async def test_put_creates_entry(self, client):
-        resp = await client.put("/api/artwork-meta/NEW1", json={"title": "Test Art", "width": 1920})
+        resp = await client.put("/api/artwork-meta/NEW1", json={"title": "Test Art"})
         assert resp.status_code == 200
         assert resp.json()["meta"]["title"] == "Test Art"
-        assert resp.json()["meta"]["width"] == 1920
 
     async def test_put_empty_title_skipped(self, client, tmp_data_dir):
         meta = {"artwork": {"ID1": {"title": "Keep This"}}}
         (tmp_data_dir / "artwork_meta.json").write_text(json.dumps(meta))
-        await client.put("/api/artwork-meta/ID1", json={"title": "  ", "width": 100})
+        await client.put("/api/artwork-meta/ID1", json={"title": "  "})
         loaded = server._load_artwork_meta()
         assert loaded["artwork"]["ID1"]["title"] == "Keep This"
-        assert loaded["artwork"]["ID1"]["width"] == 100
+
+    async def test_put_unknown_key_ignored(self, client):
+        resp = await client.put(
+            "/api/artwork-meta/NEW2", json={"title": "Foo", "garbage": "x" * 1000}
+        )
+        assert resp.status_code == 200
+        meta = resp.json()["meta"]
+        assert meta["title"] == "Foo"
+        assert "garbage" not in meta
+        assert "garbage" not in server._load_artwork_meta()["artwork"]["NEW2"]
 
 
 # ---------------------------------------------------------------------------
