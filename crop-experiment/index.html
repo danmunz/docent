@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>16:9 Crop Bake-off</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: dark;
+  }
+  body {
+    background: #111;
+    color: #eee;
+    font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    margin: 0;
+    padding: 32px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .intro {
+    max-width: 880px;
+    margin: 0 0 44px;
+  }
+  h1 {
+    font-family: "Sora", "Plus Jakarta Sans", sans-serif;
+    font-size: 27px;
+    font-weight: 700;
+    margin: 0 0 12px;
+    letter-spacing: -0.015em;
+  }
+  .intro p {
+    color: #bbb;
+    font-size: 14.5px;
+    line-height: 1.6;
+    margin: 0 0 14px;
+  }
+  .intro p.eyebrow {
+    font-family: "Sora", "Plus Jakarta Sans", sans-serif;
+    color: #4a8cff;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 0 0 10px;
+  }
+  .stack {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 4px 0 22px;
+  }
+  .stack a {
+    color: #cfe0ff;
+    background: #1a2840;
+    border: 1px solid #2c4470;
+    border-radius: 999px;
+    padding: 5px 12px;
+    font-size: 12.5px;
+    text-decoration: none;
+  }
+  .stack a:hover {
+    background: #22335a;
+  }
+  .takeaways {
+    background: #161a22;
+    border: 1px solid #262b36;
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-top: 8px;
+  }
+  .takeaways h2 {
+    font-family: "Sora", "Plus Jakarta Sans", sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #888;
+    margin: 0 0 10px;
+  }
+  .takeaways ul {
+    margin: 0;
+    padding-left: 20px;
+  }
+  .takeaways li {
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: #ccc;
+    margin-bottom: 8px;
+  }
+  .takeaways li:last-child {
+    margin-bottom: 0;
+  }
+  .takeaways b {
+    color: #fff;
+  }
+  .row {
+    margin-bottom: 48px;
+  }
+  .row h2 {
+    font-family: "Sora", "Plus Jakarta Sans", sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: #ccc;
+    margin: 0 0 10px;
+    border-bottom: 1px solid #2a2a2a;
+    padding-bottom: 6px;
+  }
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+  }
+  .card {
+    background: #1a1a1a;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #2a2a2a;
+    position: relative;
+  }
+  .card:hover {
+    overflow: visible;
+    z-index: 30;
+  }
+  .card img {
+    width: 100%;
+    display: block;
+    aspect-ratio: 16 / 9;
+    object-fit: contain;
+    background: #000;
+    border-radius: 8px 8px 0 0;
+    cursor: zoom-in;
+    position: relative;
+    box-sizing: border-box;
+    border: 0px solid #4a3526;
+    padding: 0px;
+    transform-origin: top center;
+    transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+                border-width 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+                padding 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+                background-color 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .card:hover img {
+    transform: scale(1.55);
+    border-radius: 6px;
+    border-width: 10px;
+    padding: 4px;
+    background-color: #efe9dd;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+  .cards .card:first-child img { transform-origin: top left; }
+  .cards .card:last-child img { transform-origin: top right; }
+  .card .label {
+    font-size: 12px;
+    color: #999;
+    padding: 6px 8px 2px;
+    text-align: center;
+    font-weight: 600;
+  }
+  .card .caption {
+    font-size: 12px;
+    line-height: 1.4;
+    color: #aaa;
+    padding: 2px 10px 10px;
+  }
+  .card.highlight {
+    border-color: #4a8cff;
+  }
+  .card.highlight .label {
+    color: #4a8cff;
+  }
+  @media (max-width: 1100px) {
+    .cards { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+  <div class="intro">
+    <p class="eyebrow">Frame TV art project &middot; side experiment</p>
+    <h1>16:9 Crop Bake-off</h1>
+    <p>
+      I built a public-domain art collection, north of 60 pieces, for my Samsung Frame TV, which displays
+      everything at 16:9. Most of the source paintings and prints aren't natively that shape, so each one
+      needed cropping. I had Claude Code (running on Sonnet 4.6) do that: look at each image and judge a
+      sensible crop window. Then I got curious whether an automated saliency or smart-cropping tool could
+      do the same job. I picked 10 representative images (faces and figures, abstract geometry, wide
+      panoramic scrolls, ordinary landscapes) and ran each one through three different automatic cropping
+      approaches, checked against Claude's crop.
+    </p>
+    <div class="stack">
+      <a href="https://github.com/smartcrop/smartcrop.py" target="_blank">smartcrop.py</a>
+      <a href="https://developer.apple.com/documentation/vision/generating-a-saliency-image" target="_blank">Apple Vision &mdash; Saliency API</a>
+      <a href="https://cloud.google.com/vision/docs/crop-hints" target="_blank">Google Cloud Vision &mdash; Crop Hints</a>
+    </div>
+    <div class="takeaways">
+      <h2>Takeaways</h2>
+      <ul>
+        <li>When there's an unambiguous focal point, a face, a wave, a shipwreck, all three tools land on almost the same crop Claude landed on. The Scream, Hokusai, and Aivazovsky all came out nearly identical across the board.</li>
+        <li>The Mondrian is where they fall apart. smartcrop.py and Apple Vision both fixated on the long black double-lines and cropped the painting's only spot of color, a small orange block, right out of frame. Only Google's Crop Hints kept it.</li>
+        <li>None of the three understand text. Every automated tool pulled in at least a sliver of the calligraphy panel on the Korean handscroll, because dense script reads as high-contrast and "salient" even though any human curator would ignore it on sight.</li>
+        <li>smartcrop.py costs nothing, no network call, no model download, and mostly kept pace with the other two. But it lost badly twice: it fixated on tree branches and missed the sea entirely in the Friedrich, and it cropped the shipwrecked sailors almost out of frame in the Aivazovsky.</li>
+        <li>If I had to pick one tool, it's Google's Crop Hints. smartcrop.py is a decent free fallback for anything with an obvious subject.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div id="rows"></div>
+
+  <script>
+    const FILES = [
+      "17_Munch_The_Scream.jpg",
+      "40_Zorn_Midsummer_Dance.jpg",
+      "55_Friedrich_Chalk_Cliffs_Rugen.jpg",
+      "12_SinHakgwon_Geumgang_Mountains.jpg",
+      "63_OgataKorin_Irises_Screen.jpg",
+      "21_Mondrian_Composition_No1_Gray_Red.jpg",
+      "59_HilmaAfKlint_Swan_No10.jpg",
+      "09_Hokusai_Great_Wave.jpg",
+      "04_Cezanne_Mont_Sainte_Victoire.jpg",
+      "57_Aivazovsky_The_Ninth_Wave.jpg",
+    ];
+
+    const SOURCES = [
+      { key: "original", label: "Original (uncropped)", dir: "original",      highlight: false },
+      { key: "claude",   label: "Claude (Sonnet 4.6)",  dir: "claude",        highlight: true  },
+      { key: "smartcrop",label: "smartcrop.py",         dir: "smartcrop",     highlight: false },
+      { key: "apple",    label: "Apple Vision",         dir: "apple_vision",  highlight: false },
+      { key: "google",   label: "Google Cloud Vision",  dir: "google_vision", highlight: false },
+    ];
+
+    const CAPTIONS = {
+      "17_Munch_The_Scream.jpg": {
+        original: "Iconic screaming figure on a bridge with two onlookers and a swirling sky — strongly portrait-oriented in the source print.",
+        claude: "Centered on the face and the swirling sky above it, trimming most of the bridge railing and legs below.",
+        smartcrop: "Landed on almost the same window as Claude's crop — face, sky, and background figures all intact.",
+        apple: "Nearly identical to Claude's crop, with slightly more headroom above the curling sky lines.",
+        google: "Matches the other crops closely, face centered with the curling sky and distant ships visible.",
+      },
+      "40_Zorn_Midsummer_Dance.jpg": {
+        original: "Festive Swedish midsummer scene — a dancing couple in front, more dancers and a red house with a maypole behind, portrait-oriented.",
+        claude: "Zoomed in tight on just the foreground dancing couple, cutting out the house, maypole, and most of the crowd.",
+        smartcrop: "Kept the building, doorway crowd, and maypole, but pushed the main dancing couple down to the very bottom edge.",
+        apple: "Balanced both elements — kept the red house and maypole at top while still showing the full dancing couple below.",
+        google: "Nearly identical to Apple Vision's choice, comfortably including both the background architecture and the dancers.",
+      },
+      "55_Friedrich_Chalk_Cliffs_Rugen.jpg": {
+        original: "Chalk cliffs framing a calm sea with two figures and overhanging branches — a tall, portrait-format Romantic landscape.",
+        claude: "Trimmed most of the tree canopy to keep the cliffs, sea, sailboat, and both figures clearly in view.",
+        smartcrop: "Latched onto the dense, high-contrast tree branches at top and missed the sea view and figures — the actual subject.",
+        apple: "Nearly matches Claude's crop — cliffs, sea, and both figures all present.",
+        google: "Also matches Claude's crop closely, arguably the best of the three automated tools on this image.",
+      },
+      "12_SinHakgwon_Geumgang_Mountains.jpg": {
+        original: "Wide Korean ink-and-color handscroll of jagged Geumgang peaks, with a dense calligraphy panel and red seals on the right edge.",
+        claude: "Anchored left specifically to dodge the calligraphy panel, keeping only painted mountain scenery.",
+        smartcrop: "Centered further right, pulling in a large chunk of the calligraphy text alongside the peaks.",
+        apple: "Shifted right of Claude's crop, catching a sliver of text at the edge but mostly favoring the dense central peaks.",
+        google: "Similar to Apple Vision — mostly peaks, but still includes a strip of the red seals and text on the right.",
+      },
+      "63_OgataKorin_Irises_Screen.jpg": {
+        original: "Six-panel gold-leaf screen densely packed with blue iris clusters, fairly evenly spread left to right.",
+        claude: "Biased slightly left to keep the leftmost flower cluster fully intact.",
+        smartcrop: "Shifted a touch right of Claude's crop, very slightly trimming the leftmost irises.",
+        apple: "Centered on the densest middle-right clusters, losing a bit more of the left edge than Claude's crop.",
+        google: "Nearly the same window as Apple Vision — all four versions look almost identical given how evenly distributed the flowers are.",
+      },
+      "21_Mondrian_Composition_No1_Gray_Red.jpg": {
+        original: "Near-square grid of black lines with one small orange-red block in the lower right — most of the canvas is empty gray/white.",
+        claude: "Anchored to the bottom of the canvas specifically to keep the orange block and the densest line crossings.",
+        smartcrop: "Favored the top half's long double black lines and cut the orange block out entirely — missed the only spot of color.",
+        apple: "Made the same mistake as smartcrop, centering on the line crossings and losing the orange block.",
+        google: "The only automated tool that kept the orange block in frame — closest to Claude's crop.",
+      },
+      "59_HilmaAfKlint_Swan_No10.jpg": {
+        original: "Symmetrical mandala-like disc sitting exactly on the boundary between a black textured band and a white textured band.",
+        claude: "Centered squarely on the disc, keeping equal amounts of the black and white swirl bands above and below.",
+        smartcrop: "Shifted up too far, pushing the disc toward the bottom edge and nearly losing the lower white swirl band.",
+        apple: "Better centered than smartcrop but still slightly high, trimming a bit more of the bottom band than the top.",
+        google: "Matches Claude's crop almost exactly — disc centered with both bands evenly represented.",
+      },
+      "09_Hokusai_Great_Wave.jpg": {
+        original: "The famous cresting wave on the left with Mt. Fuji small in the distance and boats caught in the swell.",
+        claude: "Trimmed a slice of sky and the very bottom of the surf — minimal change needed since the original was already close to 16:9.",
+        smartcrop: "Essentially identical to Claude's crop, just a touch more zoomed into the wave's curl.",
+        apple: "Virtually indistinguishable from Claude's crop — wave, Fuji, and boats all fully intact.",
+        google: "Also nearly identical — when the needed crop is this small, every method converges on the same result.",
+      },
+      "04_Cezanne_Mont_Sainte_Victoire.jpg": {
+        original: "Layered Provençal valley view — foreground pine trees, a stone viaduct, and the mountain in the distance.",
+        claude: "Kept the full mountain peak, viaduct, and foreground trees with generous sky above.",
+        smartcrop: "Zoomed in and shifted down, crowding the mountain peak right against the top edge and losing breathing room in the sky.",
+        apple: "Matches Claude's crop closely, full mountain and viaduct comfortably in frame.",
+        google: "Also matches Claude's crop — mountain, viaduct, and trees all well balanced.",
+      },
+      "57_Aivazovsky_The_Ninth_Wave.jpg": {
+        original: "Dramatic shipwreck scene — survivors clinging to wreckage in the foreground beneath a towering wave and blazing sunrise.",
+        claude: "Kept the survivors on their raft fully visible at the bottom alongside the wave and sun.",
+        smartcrop: "Cropped higher, pushing the shipwrecked sailors down to a sliver at the very bottom edge, prioritizing sky and wave instead.",
+        apple: "Matches Claude's crop, survivors and wave both clearly visible.",
+        google: "Also matches Claude's crop closely — the human subjects stay prominent, not just the spectacle of the wave.",
+      },
+    };
+
+    const root = document.getElementById("rows");
+
+    for (const file of FILES) {
+      const row = document.createElement("div");
+      row.className = "row";
+
+      const heading = document.createElement("h2");
+      heading.textContent = file.replace(/_/g, " ").replace(/\.jpg$/i, "");
+      row.appendChild(heading);
+
+      const cards = document.createElement("div");
+      cards.className = "cards";
+
+      for (const src of SOURCES) {
+        const card = document.createElement("div");
+        card.className = "card" + (src.highlight ? " highlight" : "");
+
+        const img = document.createElement("img");
+        img.src = `${src.dir}/${file}`;
+        img.loading = "lazy";
+        card.appendChild(img);
+
+        const label = document.createElement("div");
+        label.className = "label";
+        label.textContent = src.label;
+        card.appendChild(label);
+
+        const caption = document.createElement("div");
+        caption.className = "caption";
+        caption.textContent = (CAPTIONS[file] && CAPTIONS[file][src.key]) || "";
+        card.appendChild(caption);
+
+        cards.appendChild(card);
+      }
+
+      row.appendChild(cards);
+      root.appendChild(row);
+    }
+  </script>
+</body>
+</html>
