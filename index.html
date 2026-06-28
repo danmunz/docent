@@ -1179,6 +1179,19 @@
     min-width: 40px;
   }
 
+  .crop-caption {
+    font-size: 13px;
+    color: var(--text);
+    margin-bottom: 4px;
+    min-height: 18px;
+  }
+
+  .crop-upsell {
+    font-size: 12px;
+    color: var(--text2);
+    margin-bottom: 8px;
+  }
+
   .crop-info {
     font-size: 12px;
     color: var(--text2);
@@ -2039,10 +2052,14 @@
         <input type="range" id="cropZoom" min="100" max="400" value="100" oninput="onCropZoom(this.value)">
         <span id="cropZoomLabel">100%</span>
       </div>
+      <div class="crop-caption" id="cropCaption"></div>
+      <div class="crop-upsell" id="cropUpsell" style="display:none">
+        Crops can be sharper with <a href="#" onclick="openSettingsFromCrop();return false;">Enhanced Mode</a>.
+      </div>
       <div class="crop-info" id="cropInfo"></div>
       <div class="crop-actions">
         <button class="primary" onclick="applyCrop()" title="Apply the current crop selection">Apply Crop</button>
-        <button onclick="autoCrop()" title="Automatically fit image to 16:9">Auto-fit</button>
+        <button onclick="autoCrop()" title="Reset to a plain centered 16:9 crop">Center</button>
         <button onclick="skipCropFile()" title="Upload without cropping">Skip (upload as-is)</button>
         <button onclick="removeCropFile()" title="Remove this file from upload queue">Remove</button>
         <button onclick="closeCropModal()" title="Cancel crop and return">Cancel</button>
@@ -2118,12 +2135,12 @@
       <h3>AI Settings</h3>
 
       <div class="settings-section">
-        <div class="settings-section-title">Identification</div>
-        <div class="settings-hint" style="margin-bottom:8px">Required for auto-identifying artwork titles, artists, and dates. Without it, you'll need to enter metadata manually.</div>
+        <div class="settings-section-title">Enhanced Mode (Google Vision)</div>
+        <div class="settings-hint" style="margin-bottom:8px">One Google Vision key makes Docent smarter two ways: it <strong>identifies</strong> artworks (titles, artists, dates) by reverse image search, and it suggests <strong>better crops</strong> that frame the subject. Without a key, Docent still smart-crops locally and you enter metadata manually.</div>
         <div class="settings-group">
           <label class="settings-toggle">
             <input type="checkbox" id="useGoogleVision">
-            Use Google Vision to identify artworks
+            Use Google Vision for identification &amp; smarter cropping
           </label>
         </div>
         <div class="settings-group" id="gvKeyGroup">
@@ -2237,6 +2254,7 @@
     · <a href="https://github.com/sponsors/danmunz" target="_blank" rel="noopener">Sponsor me on GitHub</a>
   </footer>
 
+  <script src="/assets/js/smartcrop.js"></script>
   <script>
     let artItems = [];
     let currentId = null;
@@ -3593,7 +3611,10 @@
           const aspect = w / h;
           const target = 16 / 9;
           const issues = [];
-          if (Math.abs(aspect - target) > 0.01) issues.push('not-16:9');
+          // Strict trigger: anything not (near-)exactly 16:9 gets a smart-crop
+          // pass, since the local seed is free. Epsilon only absorbs float dust
+          // so genuine 3840x2160 uploads don't needlessly queue.
+          if (Math.abs(aspect - target) > 0.002) issues.push('not-16:9');
           if (w < 3840 || h < 2160) issues.push('low-res');
           if (w > 3840) issues.push('oversized');
           resolve({ width: w, height: h, aspect, compliant: issues.length === 0, issues });
@@ -3614,10 +3635,143 @@
     }
 
     // --- Crop Editor ---
-    let cropState = { file: null, img: null, zoom: 1, offsetX: 0, offsetY: 0, dragging: false, dragStartX: 0, dragStartY: 0, fileIndex: -1 };
+    let cropState = { file: null, img: null, zoom: 1, offsetX: 0, offsetY: 0, dragging: false, dragStartX: 0, dragStartY: 0, fileIndex: -1, seedSource: '' };
     let cropQueue = [];
     let cropQueueIndex = 0;
     let cropResolve = null;
+    let cropPrefetch = new Map();      // File -> Promise<crop-hint response | null>
+    let enhancedModeAvailable = null;  // cached: Google Vision key configured?
+
+    // Is Enhanced Mode (a Google Vision key) configured? Cached per session.
+    async function checkEnhancedMode() {
+      if (enhancedModeAvailable !== null) return enhancedModeAvailable;
+      try {
+        const cfg = await api('/ai/config');
+        enhancedModeAvailable = !!(cfg.use_google_vision && cfg.google_vision && cfg.google_vision.api_key);
+      } catch { enhancedModeAvailable = false; }
+      return enhancedModeAvailable;
+    }
+
+    // Only spend a cloud crop-hint call when the image is meaningfully off 16:9
+    // (>2% relative). Near-16:9 images are seeded locally for free.
+    function visionWorthwhile(analysis) {
+      if (!analysis || !analysis.aspect) return false;
+      const target = 16 / 9;
+      return Math.abs(analysis.aspect - target) / target > 0.02;
+    }
+
+    // Kick off Google crop hints for eligible queued images so cloud latency
+    // never blocks the modal. Keyed by File so it survives index splices.
+    async function prefetchCropHints(indices) {
+      if (!(await checkEnhancedMode())) return;
+      for (const i of indices) {
+        const file = pendingFiles[i];
+        if (!file || cropPrefetch.has(file)) continue;
+        if (!visionWorthwhile(pendingAnalysis[i])) continue;
+        const form = new FormData();
+        form.append('file', file);
+        cropPrefetch.set(file, fetch('/api/crop-hint', { method: 'POST', body: form })
+          .then(r => r.ok ? r.json() : null)
+          .catch(() => null));
+      }
+    }
+
+    // Expand an arbitrary salient box to the nearest 16:9 box centered on it,
+    // clamped to image bounds. Without this, a non-16:9 seed letterboxes.
+    function expandTo169(x, y, w, h, imgW, imgH) {
+      const target = 16 / 9;
+      let bw = w, bh = h;
+      if (bw / bh > target) bh = bw / target; else bw = bh * target;
+      if (bw > imgW) { bw = imgW; bh = bw / target; }
+      if (bh > imgH) { bh = imgH; bw = bh * target; }
+      const cx = x + w / 2, cy = y + h / 2;
+      const nx = Math.max(0, Math.min(imgW - bw, cx - bw / 2));
+      const ny = Math.max(0, Math.min(imgH - bh, cy - bh / 2));
+      return { x: nx, y: ny, w: bw, h: bh };
+    }
+
+    // Run smartcrop.js on a small downscale (speed) and return a source-pixel box.
+    async function smartCropSeedBox(img) {
+      const maxEdge = 256;
+      const scale = Math.min(1, maxEdge / Math.max(img.naturalWidth, img.naturalHeight));
+      const sw = Math.max(1, Math.round(img.naturalWidth * scale));
+      const sh = Math.max(1, Math.round(img.naturalHeight * scale));
+      const c = document.createElement('canvas');
+      c.width = sw; c.height = sh;
+      c.getContext('2d').drawImage(img, 0, 0, sw, sh);
+      const result = await SmartCrop.crop(c, { width: 16, height: 9 });
+      const t = result.topCrop;
+      return { x: t.x / scale, y: t.y / scale, w: t.width / scale, h: t.height / scale };
+    }
+
+    // Invert applyCrop()'s forward transform: map a source-pixel 16:9 box to the
+    // viewport's { zoom, offsetX, offsetY }. clampOffsets() is the safe backstop.
+    function seedSmartCrop(srcX, srcY, srcW, srcH) {
+      const canvas = document.getElementById('cropCanvas');
+      const viewW = canvas.width, viewH = canvas.height;
+      const img = cropState.img;
+      if (!img || srcW <= 0 || srcH <= 0) return;
+      const bs = getCropBaseScale();
+      const zoom = viewW / (srcW * bs);
+      const drawW = img.naturalWidth * bs * zoom;
+      const drawH = img.naturalHeight * bs * zoom;
+      const dx = -srcX * viewW / srcW;
+      const dy = -srcY * viewH / srcH;
+      cropState.zoom = zoom;
+      cropState.offsetX = (dx - (viewW - drawW) / 2) / (bs * zoom);
+      cropState.offsetY = (dy - (viewH - drawH) / 2) / (bs * zoom);
+      const slider = document.getElementById('cropZoom');
+      if (slider) {
+        slider.value = Math.round(Math.min(400, Math.max(100, cropState.zoom * 100)));
+        document.getElementById('cropZoomLabel').textContent = slider.value + '%';
+      }
+      clampOffsets();
+      drawCropCanvas();
+      updateCropInfo();
+    }
+
+    // Seed the modal: local smartcrop floor, upgraded to the prefetched Google
+    // hint when one is available. Guards against the user advancing the queue.
+    async function seedBestCrop(fileIndex) {
+      const img = cropState.img;
+      const file = pendingFiles[fileIndex];
+      if (!img || !file || typeof SmartCrop === 'undefined') { updateCropCaption(''); return; }
+      let box = null, source = 'smartcrop';
+      try { box = await smartCropSeedBox(img); } catch (e) { console.debug('smartcrop failed', e); }
+      const pf = cropPrefetch.get(file);
+      if (pf) {
+        try {
+          const g = await pf;
+          if (g && g.box) { box = g.box; source = 'google'; }
+        } catch (e) { console.debug('crop-hint failed', e); }
+      }
+      // User may have moved to another image while we awaited.
+      if (cropState.fileIndex !== fileIndex || cropState.img !== img) return;
+      if (!box) { updateCropCaption(''); return; }
+      const e169 = expandTo169(box.x, box.y, box.w, box.h, img.naturalWidth, img.naturalHeight);
+      cropState.seedSource = source;
+      seedSmartCrop(e169.x, e169.y, e169.w, e169.h);
+      updateCropCaption(source);
+    }
+
+    function updateCropCaption(source) {
+      const cap = document.getElementById('cropCaption');
+      const upsell = document.getElementById('cropUpsell');
+      if (source === 'google') {
+        cap.textContent = 'Smart crop by Google Vision — drag to adjust.';
+      } else if (source === 'smartcrop') {
+        cap.textContent = 'Suggested crop — drag to adjust.';
+      } else {
+        cap.textContent = '';
+      }
+      // Upsell only when no key is configured and we're on a free local seed.
+      upsell.style.display = (enhancedModeAvailable === false && source !== 'google') ? 'block' : 'none';
+    }
+
+    function openSettingsFromCrop() {
+      closeCropModal();
+      if (typeof openSettings === 'function') openSettings();
+    }
 
     function openCropModal(fileIndex) {
       const file = pendingFiles[fileIndex];
@@ -3627,7 +3781,10 @@
       cropState.zoom = 1;
       cropState.offsetX = 0;
       cropState.offsetY = 0;
+      cropState.seedSource = '';
       document.getElementById('cropFileName').textContent = file.name;
+      document.getElementById('cropCaption').textContent = '';
+      document.getElementById('cropUpsell').style.display = 'none';
       const img = new Image();
       img.onload = () => {
         cropState.img = img;
@@ -3637,6 +3794,8 @@
           setupCropCanvas();
           drawCropCanvas();
           updateCropInfo();
+          // Upgrade the plain center crop to a content-aware seed.
+          seedBestCrop(fileIndex);
         });
       };
       img.src = URL.createObjectURL(file);
@@ -3756,6 +3915,9 @@
       cropState.zoom = 1;
       cropState.offsetX = 0;
       cropState.offsetY = 0;
+      cropState.seedSource = 'manual';
+      const cap = document.getElementById('cropCaption');
+      if (cap) cap.textContent = '';
       const slider = document.getElementById('cropZoom');
       if (slider) {
         slider.value = Math.round(cropState.zoom * 100);
@@ -3799,7 +3961,13 @@
         const name = cropState.file.name.replace(/\.[^.]+$/, '') + '_cropped.jpg';
         const croppedFile = new File([blob], name, { type: 'image/jpeg' });
         pendingFiles[cropState.fileIndex] = croppedFile;
-        pendingAnalysis[cropState.fileIndex] = { width: outW, height: outH, aspect: 16/9, compliant: true, issues: [] };
+        pendingAnalysis[cropState.fileIndex] = {
+          width: outW, height: outH, aspect: 16/9, compliant: true, issues: [],
+          crop_box: {
+            x: srcX, y: srcY, w: srcW, h: srcH,
+            source: cropState.seedSource || 'manual',
+          },
+        };
         renderPendingFiles();
         document.getElementById('cropModal').classList.remove('active');
         if (cropResolve) { cropResolve('cropped'); cropResolve = null; }
@@ -3888,13 +4056,14 @@
       fileInput.value = '';
     }
 
-    function uploadFileWithProgress(file, matte, analyze, { onUploadProgress, onAnalyzing }) {
+    function uploadFileWithProgress(file, matte, analyze, { onUploadProgress, onAnalyzing, cropBox }) {
       return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         const form = new FormData();
         form.append('file', file);
         form.append('matte', matte);
         form.append('filename', file.name);
+        if (cropBox) form.append('crop_box', JSON.stringify(cropBox));
 
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) onUploadProgress((e.loaded / e.total) * 100);
@@ -3938,6 +4107,8 @@
       if (nonCompliant.length > 0) {
         cropQueue = nonCompliant;
         cropQueueIndex = 0;
+        cropPrefetch.clear();
+        prefetchCropHints(nonCompliant);  // warm cloud hints for the whole queue
         updateQueueIndicator();
         openCropModal(cropQueue[0]);
         return;
@@ -3974,7 +4145,9 @@
       let completed = 0;
       const total = pendingFiles.length;
 
-      for (const file of pendingFiles) {
+      for (let fi = 0; fi < pendingFiles.length; fi++) {
+        const file = pendingFiles[fi];
+        const cropBox = pendingAnalysis[fi] && pendingAnalysis[fi].crop_box;
         document.getElementById('progressLabel').textContent =
           total > 1 ? `${completed + 1} of ${total}: ${file.name}` : file.name;
         document.getElementById('progressBar').className = 'progress-bar-fill';
@@ -3985,6 +4158,7 @@
 
         try {
           const result = await uploadFileWithProgress(file, matte, shouldAnalyze, {
+            cropBox,
             onUploadProgress: (pct) => {
               document.getElementById('progressBar').style.width = pct + '%';
               document.getElementById('progressStage').textContent = `Uploading... ${Math.round(pct)}%`;
@@ -4126,6 +4300,7 @@
         if (openaiKey) body.openai.api_key = openaiKey;
         if (gvKey) body.google_vision.api_key = gvKey;
         await api('/ai/config', { method: 'PUT', body });
+        enhancedModeAvailable = null;  // re-check on next crop (mid-session key change)
         toast('AI settings saved', 'success');
         if (apiKey) {
           document.getElementById('aiApiKey').placeholder = '...' + apiKey.slice(-4);
