@@ -1259,6 +1259,11 @@ async def crop_hint(file: UploadFile = File(...)):
     except Exception:
         return {"box": None, "reason": "unreadable"}
 
+    # Authoritative 2% aspect gate: a near-16:9 image doesn't need a (paid) hint,
+    # so don't spend a Vision request on one even if a caller skips the client gate.
+    if full_h and abs((full_w / full_h) - 16 / 9) / (16 / 9) <= 0.02:
+        return {"box": None, "reason": "near_16_9"}
+
     # Downscale for Vision (cost/latency); scale the returned box back to the
     # original pixel space the modal works in (matches img.naturalWidth).
     vis = img.copy()

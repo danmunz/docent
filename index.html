@@ -3635,7 +3635,7 @@
     }
 
     // --- Crop Editor ---
-    let cropState = { file: null, img: null, zoom: 1, offsetX: 0, offsetY: 0, dragging: false, dragStartX: 0, dragStartY: 0, fileIndex: -1, seedSource: '' };
+    let cropState = { file: null, img: null, zoom: 1, offsetX: 0, offsetY: 0, dragging: false, dragStartX: 0, dragStartY: 0, fileIndex: -1, seedSource: '', userAdjusted: false };
     let cropQueue = [];
     let cropQueueIndex = 0;
     let cropResolve = null;
@@ -3730,28 +3730,40 @@
       updateCropInfo();
     }
 
-    // Seed the modal: local smartcrop floor, upgraded to the prefetched Google
-    // hint when one is available. Guards against the user advancing the queue.
-    async function seedBestCrop(fileIndex) {
-      const img = cropState.img;
-      const file = pendingFiles[fileIndex];
-      if (!img || !file || typeof SmartCrop === 'undefined') { updateCropCaption(''); return; }
-      let box = null, source = 'smartcrop';
-      try { box = await smartCropSeedBox(img); } catch (e) { console.debug('smartcrop failed', e); }
-      const pf = cropPrefetch.get(file);
-      if (pf) {
-        try {
-          const g = await pf;
-          if (g && g.box) { box = g.box; source = 'google'; }
-        } catch (e) { console.debug('crop-hint failed', e); }
-      }
-      // User may have moved to another image while we awaited.
-      if (cropState.fileIndex !== fileIndex || cropState.img !== img) return;
-      if (!box) { updateCropCaption(''); return; }
+    // Apply a source-pixel box as the modal seed, unless the user has already
+    // taken over or moved on. Returns false if the seed was suppressed.
+    function applySeedBox(fileIndex, img, box, source) {
+      // User advanced the queue, or already dragged/zoomed/centered — don't clobber.
+      if (cropState.fileIndex !== fileIndex || cropState.img !== img) return false;
+      if (cropState.userAdjusted) return false;
+      if (!box) return false;
       const e169 = expandTo169(box.x, box.y, box.w, box.h, img.naturalWidth, img.naturalHeight);
       cropState.seedSource = source;
       seedSmartCrop(e169.x, e169.y, e169.w, e169.h);
       updateCropCaption(source);
+      return true;
+    }
+
+    // Seed the modal: apply the local smartcrop floor immediately (no wait), then
+    // upgrade to the prefetched Google hint when it arrives — but never overwrite
+    // adjustments the user made while the cloud hint was in flight.
+    async function seedBestCrop(fileIndex) {
+      const img = cropState.img;
+      const file = pendingFiles[fileIndex];
+      if (!img || !file || typeof SmartCrop === 'undefined') { updateCropCaption(''); return; }
+
+      // 1. Local floor — fast, applied right away so there's no center-crop gap.
+      let localBox = null;
+      try { localBox = await smartCropSeedBox(img); } catch (e) { console.debug('smartcrop failed', e); }
+      const seeded = applySeedBox(fileIndex, img, localBox, 'smartcrop');
+      if (!seeded && !cropPrefetch.get(file)) { if (!cropState.userAdjusted) updateCropCaption(''); return; }
+
+      // 2. Cloud ceiling — upgrade when it resolves, unless the user has taken over.
+      const pf = cropPrefetch.get(file);
+      if (!pf) return;
+      let g = null;
+      try { g = await pf; } catch (e) { console.debug('crop-hint failed', e); }
+      if (g && g.box) applySeedBox(fileIndex, img, g.box, 'google');
     }
 
     function updateCropCaption(source) {
@@ -3788,13 +3800,15 @@
       const img = new Image();
       img.onload = () => {
         cropState.img = img;
-        autoCrop();
+        autoCrop();  // instant center baseline (sets userAdjusted; reset below before seeding)
         document.getElementById('cropModal').classList.add('active');
         requestAnimationFrame(() => {
           setupCropCanvas();
           drawCropCanvas();
           updateCropInfo();
-          // Upgrade the plain center crop to a content-aware seed.
+          // Clear the flag set by the internal autoCrop above, so the smart seed
+          // can apply — but any *user* action from here on suppresses late hints.
+          cropState.userAdjusted = false;
           seedBestCrop(fileIndex);
         });
       };
@@ -3823,7 +3837,7 @@
       canvas.width = wrap.clientWidth * (window.devicePixelRatio || 1);
       canvas.height = Math.round(canvas.width * 9 / 16);
 
-      canvas.onmousedown = e => { cropState.dragging = true; cropState.dragStartX = e.clientX; cropState.dragStartY = e.clientY; };
+      canvas.onmousedown = e => { cropState.dragging = true; cropState.userAdjusted = true; cropState.dragStartX = e.clientX; cropState.dragStartY = e.clientY; };
       canvas.onmousemove = e => {
         if (!cropState.dragging) return;
         const scale = getCropScale();
@@ -3836,7 +3850,7 @@
       };
       canvas.onmouseup = canvas.onmouseleave = () => { cropState.dragging = false; };
 
-      canvas.ontouchstart = e => { e.preventDefault(); const t = e.touches[0]; cropState.dragging = true; cropState.dragStartX = t.clientX; cropState.dragStartY = t.clientY; };
+      canvas.ontouchstart = e => { e.preventDefault(); const t = e.touches[0]; cropState.dragging = true; cropState.userAdjusted = true; cropState.dragStartX = t.clientX; cropState.dragStartY = t.clientY; };
       canvas.ontouchmove = e => {
         if (!cropState.dragging) return;
         const t = e.touches[0]; const scale = getCropScale();
@@ -3896,6 +3910,7 @@
     }
 
     function onCropZoom(val) {
+      cropState.userAdjusted = true;
       const oldZoom = cropState.zoom;
       cropState.zoom = val / 100;
       if (oldZoom > 0) {
@@ -3916,6 +3931,7 @@
       cropState.offsetX = 0;
       cropState.offsetY = 0;
       cropState.seedSource = 'manual';
+      cropState.userAdjusted = true;  // explicit Center press; a late hint must not override
       const cap = document.getElementById('cropCaption');
       if (cap) cap.textContent = '';
       const slider = document.getElementById('cropZoom');
