@@ -758,6 +758,7 @@ async def upload_art(
     filename: str = Form(""),
     crop_box: str = Form(""),
     analyze: bool = Query(False),
+    defer_analyze: bool = Query(False),
 ):
     chunks = []
     total = 0
@@ -856,7 +857,10 @@ async def upload_art(
         except Exception as e:
             log.warning("Auto-analyze failed during upload for %s: %s", content_id, e)
             ai_result = {"error": "Analysis failed"}
-    elif should_analyze:
+    elif should_analyze and not defer_analyze:
+        # defer_analyze means the caller (the upload UI, for an honest two-stage
+        # progress bar) commits to driving analysis itself via the standalone
+        # /api/ai/analyze/{content_id} endpoint — don't double-fire here.
         asyncio.create_task(_analyze_artwork_background(content_id))
 
     resp = {"ok": True, "content_id": content_id, "title": original_name, "width": w, "height": h}

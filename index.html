@@ -540,6 +540,25 @@
     line-height: 1;
   }
 
+  .upload-thumb-item .thumb-edit {
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent, #555);
+    color: #fff;
+    font-size: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    padding: 0;
+    line-height: 1;
+  }
+
   .compliance-badge {
     position: absolute;
     bottom: 20px;
@@ -1958,7 +1977,7 @@
         </select>
       </div>
       <div style="display:flex;gap:8px;margin-top:8px">
-        <button class="primary" onclick="doUpload()" title="Upload selected artwork to your Frame TV">Upload to Frame</button>
+        <button class="primary" id="uploadSubmitBtn" onclick="doUpload()" title="Upload selected artwork to your Frame TV">Upload to Frame</button>
         <button onclick="cancelUpload()" title="Cancel upload and clear selection">Cancel</button>
       </div>
       <p id="uploadStatus" style="font-size:12px;color:var(--text2);margin-top:4px"></p>
@@ -2058,11 +2077,12 @@
       </div>
       <div class="crop-info" id="cropInfo"></div>
       <div class="crop-actions">
-        <button class="primary" onclick="applyCrop()" title="Apply the current crop selection">Apply Crop</button>
+        <button class="primary" onclick="applyCrop()" title="Save this crop and continue">Apply Crop</button>
+        <button onclick="reapplySmartCrop()" title="Return to the suggested crop, discarding manual adjustments">Smart Crop</button>
         <button onclick="autoCrop()" title="Reset to a plain centered 16:9 crop">Center</button>
-        <button onclick="skipCropFile()" title="Upload without cropping">Skip (upload as-is)</button>
-        <button onclick="removeCropFile()" title="Remove this file from upload queue">Remove</button>
-        <button onclick="closeCropModal()" title="Cancel crop and return">Cancel</button>
+        <button id="cropSkipBtn" onclick="skipCropFile()" title="Upload this image without cropping it to 16:9">Skip (upload as-is)</button>
+        <button onclick="removeCropFile()" title="Delete this image — it won't be uploaded">Remove</button>
+        <button onclick="closeCropModal()" title="Close without saving — resume by clicking Upload to Frame again">Cancel</button>
       </div>
     </div>
   </div>
@@ -3599,8 +3619,25 @@
             badge.innerHTML = getComplianceBadgeHTML(analysis);
             badge.className = 'compliance-badge ' + (analysis.compliant ? 'compliance-ok' : 'compliance-warn');
           }
+          updateUploadButtonLabel();
         });
       });
+      updateUploadButtonLabel();
+    }
+
+    // Reflect whether any pending image still needs a 16:9 crop, so the upload
+    // button doesn't imply an immediate upload when a review step is coming.
+    function updateUploadButtonLabel() {
+      const btn = document.getElementById('uploadSubmitBtn');
+      if (!btn) return;
+      const pending = pendingAnalysis.some(a => a && !a.compliant && a.issues.includes('not-16:9'));
+      if (pending) {
+        btn.textContent = 'Adjust Crops & Upload';
+        btn.title = "Some images need a 16:9 crop — you'll review them before they're sent to the TV";
+      } else {
+        btn.textContent = 'Upload to Frame';
+        btn.title = 'Upload selected artwork to your Frame TV';
+      }
     }
 
     function analyzeImage(file) {
@@ -3635,7 +3672,7 @@
     }
 
     // --- Crop Editor ---
-    let cropState = { file: null, img: null, zoom: 1, offsetX: 0, offsetY: 0, dragging: false, dragStartX: 0, dragStartY: 0, fileIndex: -1, seedSource: '', userAdjusted: false };
+    let cropState = { file: null, img: null, zoom: 1, offsetX: 0, offsetY: 0, dragging: false, dragStartX: 0, dragStartY: 0, fileIndex: -1, seedSource: '', userAdjusted: false, bestBox: null, bestSource: '' };
     let cropQueue = [];
     let cropQueueIndex = 0;
     let cropResolve = null;
@@ -3733,15 +3770,30 @@
     // Apply a source-pixel box as the modal seed, unless the user has already
     // taken over or moved on. Returns false if the seed was suppressed.
     function applySeedBox(fileIndex, img, box, source) {
-      // User advanced the queue, or already dragged/zoomed/centered — don't clobber.
+      // User advanced the queue — this result is for a different image now.
       if (cropState.fileIndex !== fileIndex || cropState.img !== img) return false;
-      if (cropState.userAdjusted) return false;
       if (!box) return false;
       const e169 = expandTo169(box.x, box.y, box.w, box.h, img.naturalWidth, img.naturalHeight);
+      // Cache regardless of whether we apply it now, so "Smart Crop" can return
+      // to this suggestion later even if the user already took over.
+      cropState.bestBox = e169;
+      cropState.bestSource = source;
+      if (cropState.userAdjusted) return false;  // don't clobber a manual edit
       cropState.seedSource = source;
       seedSmartCrop(e169.x, e169.y, e169.w, e169.h);
       updateCropCaption(source);
       return true;
+    }
+
+    // Re-apply the last computed suggestion (smartcrop or Google), discarding
+    // any manual drag/zoom/Center. The one way back to the seed once you've
+    // started adjusting it by hand.
+    function reapplySmartCrop() {
+      if (!cropState.bestBox) return;
+      cropState.userAdjusted = false;
+      cropState.seedSource = cropState.bestSource;
+      seedSmartCrop(cropState.bestBox.x, cropState.bestBox.y, cropState.bestBox.w, cropState.bestBox.h);
+      updateCropCaption(cropState.bestSource);
     }
 
     // Seed the modal: apply the local smartcrop floor immediately (no wait), then
@@ -3794,9 +3846,15 @@
       cropState.offsetX = 0;
       cropState.offsetY = 0;
       cropState.seedSource = '';
+      cropState.bestBox = null;
+      cropState.bestSource = '';
       document.getElementById('cropFileName').textContent = file.name;
       document.getElementById('cropCaption').textContent = '';
       document.getElementById('cropUpsell').style.display = 'none';
+      // Skip ("upload as-is") only makes sense in the mandatory non-16:9 queue —
+      // editing an already-compliant image standalone makes Skip redundant with Cancel.
+      const inQueue = cropQueue.includes(fileIndex);
+      document.getElementById('cropSkipBtn').style.display = inQueue ? '' : 'none';
       const img = new Image();
       img.onload = () => {
         cropState.img = img;
@@ -3840,9 +3898,14 @@
       canvas.onmousedown = e => { cropState.dragging = true; cropState.userAdjusted = true; cropState.dragStartX = e.clientX; cropState.dragStartY = e.clientY; };
       canvas.onmousemove = e => {
         if (!cropState.dragging) return;
+        // offsetX/Y are consumed downstream (drawCropCanvas/clampOffsets/applyCrop)
+        // as offset*bs*zoom in *internal* canvas pixels, so a CSS-pixel mouse
+        // delta must be scaled up to internal pixels (* scale) then converted
+        // back through that same factor (/ bs / zoom) to track the cursor 1:1.
         const scale = getCropScale();
-        cropState.offsetX += (e.clientX - cropState.dragStartX) / scale;
-        cropState.offsetY += (e.clientY - cropState.dragStartY) / scale;
+        const bs = getCropBaseScale();
+        cropState.offsetX += (e.clientX - cropState.dragStartX) * scale / (bs * cropState.zoom);
+        cropState.offsetY += (e.clientY - cropState.dragStartY) * scale / (bs * cropState.zoom);
         cropState.dragStartX = e.clientX;
         cropState.dragStartY = e.clientY;
         clampOffsets();
@@ -3854,8 +3917,9 @@
       canvas.ontouchmove = e => {
         if (!cropState.dragging) return;
         const t = e.touches[0]; const scale = getCropScale();
-        cropState.offsetX += (t.clientX - cropState.dragStartX) / scale;
-        cropState.offsetY += (t.clientY - cropState.dragStartY) / scale;
+        const bs = getCropBaseScale();
+        cropState.offsetX += (t.clientX - cropState.dragStartX) * scale / (bs * cropState.zoom);
+        cropState.offsetY += (t.clientY - cropState.dragStartY) * scale / (bs * cropState.zoom);
         cropState.dragStartX = t.clientX;
         cropState.dragStartY = t.clientY;
         clampOffsets();
@@ -4042,6 +4106,7 @@
           const badgeHTML = a ? getComplianceBadgeHTML(a) : '';
           item.innerHTML = `
             <button class="thumb-remove" onclick="removePendingFile(${idx})" title="Remove from upload queue" aria-label="Remove">&times;</button>
+            <button class="thumb-edit" onclick="editPendingCrop(${idx})" title="Adjust crop" aria-label="Adjust crop">&#9999;</button>
             <img src="${e.target.result}">
             <span class="${badgeClass}" id="compBadge_${idx}">${badgeHTML}</span>
             <div class="thumb-name" title="${file.name}">${file.name}</div>
@@ -4053,6 +4118,21 @@
       document.getElementById('uploadPreview').classList.add('active');
       document.getElementById('uploadStatus').textContent =
         `${pendingFiles.length} file${pendingFiles.length > 1 ? 's' : ''} selected`;
+      updateUploadButtonLabel();
+    }
+
+    // Open the crop modal for a single pending image outside the mandatory
+    // cropQueue flow — lets users adjust crops even on already-compliant
+    // images (e.g. to zoom past an unwanted border). Reuses the existing
+    // cropResolve short-circuit already honored by applyCrop/skipCropFile/
+    // removeCropFile/closeCropModal.
+    function editPendingCrop(idx) {
+      return new Promise(resolve => {
+        cropResolve = resolve;
+        openCropModal(idx);
+      }).then(() => {
+        if (pendingFiles.length) renderPendingFiles();
+      });
     }
 
     function removePendingFile(idx) {
@@ -4072,7 +4152,13 @@
       fileInput.value = '';
     }
 
-    function uploadFileWithProgress(file, matte, analyze, { onUploadProgress, onAnalyzing, cropBox }) {
+    // Plain upload only — saves + pushes to the TV, then returns. AI analysis
+    // (when enabled) is a deliberately separate request (see doFinalUpload) so
+    // the progress UI can show two real, honestly-timed stages instead of one
+    // opaque blob. defer_analyze tells the server not to also fire its own
+    // fire-and-forget background analysis for this upload (that's only for
+    // callers who don't intend to analyze themselves).
+    function uploadFileWithProgress(file, matte, { onUploadProgress, cropBox }) {
       return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         const form = new FormData();
@@ -4083,9 +4169,6 @@
 
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) onUploadProgress((e.loaded / e.total) * 100);
-        };
-        xhr.upload.onloadend = () => {
-          if (analyze) onAnalyzing();
         };
 
         xhr.onload = () => {
@@ -4098,7 +4181,7 @@
         };
 
         xhr.onerror = () => reject(new Error('Network error'));
-        xhr.open('POST', '/api/upload' + (analyze ? '?analyze=true' : ''));
+        xhr.open('POST', '/api/upload?defer_analyze=true');
         xhr.send(form);
       });
     }
@@ -4173,15 +4256,12 @@
           total > 1 ? `${completed} of ${total} complete` : '';
 
         try {
-          const result = await uploadFileWithProgress(file, matte, shouldAnalyze, {
+          // Stage 1: real byte progress through the upload + TV push.
+          const result = await uploadFileWithProgress(file, matte, {
             cropBox,
             onUploadProgress: (pct) => {
               document.getElementById('progressBar').style.width = pct + '%';
               document.getElementById('progressStage').textContent = `Uploading... ${Math.round(pct)}%`;
-            },
-            onAnalyzing: () => {
-              document.getElementById('progressBar').className = 'progress-bar-fill pulsing';
-              document.getElementById('progressStage').textContent = 'Analyzing with AI...';
             },
           });
 
@@ -4190,11 +4270,20 @@
             artworkMeta[result.content_id] = {
               title: result.title, width: result.width, height: result.height,
             };
-            if (result.ai_meta) {
-              artworkMeta[result.content_id].ai_meta = result.ai_meta;
-            }
-            if (result.ai_error) {
-              toast(`AI analysis failed for ${file.name}`, 'error');
+
+            // Stage 2: a real, separately-timed analysis call — not folded
+            // into the upload request, so this stage only shows once it's
+            // actually running (no fake progress for either stage).
+            if (shouldAnalyze) {
+              document.getElementById('progressBar').className = 'progress-bar-fill pulsing';
+              document.getElementById('progressStage').textContent = 'Analyzing with AI...';
+              try {
+                const aiResult = await api(`/ai/analyze/${result.content_id}`, { method: 'POST', timeout: 120000 });
+                artworkMeta[result.content_id].ai_meta = aiResult.ai_meta;
+              } catch (e) {
+                toast(`AI analysis failed for ${file.name}`, 'error');
+              }
+              document.getElementById('progressBar').className = 'progress-bar-fill';
             }
           }
         } catch (e) {
