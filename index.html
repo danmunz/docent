@@ -4262,12 +4262,20 @@
       }
     }
 
+    // Each call clears the strip synchronously but repopulates it via async
+    // FileReader reads. If a second call lands before the first call's reads
+    // resolve, both sets of reads append — visible as duplicated cards. The
+    // generation token makes any overlapping/duplicate call safe: only the
+    // most recent call's reads are allowed to actually append.
+    let pendingRenderGen = 0;
     function renderPendingFiles() {
       const strip = document.getElementById('uploadThumbStrip');
       strip.innerHTML = '';
+      const gen = ++pendingRenderGen;
       pendingFiles.forEach((file, idx) => {
         const reader = new FileReader();
         reader.onload = e => {
+          if (gen !== pendingRenderGen) return;  // superseded by a newer render
           const item = document.createElement('div');
           item.className = 'upload-thumb-item';
           const a = pendingAnalysis[idx];
@@ -4295,13 +4303,13 @@
     // cropQueue flow — lets users adjust crops even on already-compliant
     // images (e.g. to zoom past an unwanted border). Reuses the existing
     // cropResolve short-circuit already honored by applyCrop/skipCropFile/
-    // removeCropFile/closeCropModal.
+    // removeCropFile/closeCropModal. Doesn't re-render here: applyCrop() and
+    // removeCropFile() already re-render before resolving, and skip/cancel
+    // don't change pendingFiles/pendingAnalysis, so nothing needs a refresh.
     function editPendingCrop(idx) {
       return new Promise(resolve => {
         cropResolve = resolve;
         openCropModal(idx);
-      }).then(() => {
-        if (pendingFiles.length) renderPendingFiles();
       });
     }
 
