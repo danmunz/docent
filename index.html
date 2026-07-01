@@ -2516,17 +2516,30 @@
       return key;
     }
 
+    function missingGroupLabel(item, sortField) {
+      const hasAiMeta = !!artworkMeta[item.content_id]?.ai_meta;
+      switch (sortField) {
+        case 'date_added': return 'Date Unknown';
+        case 'artist': return hasAiMeta ? 'Artist Unknown' : 'Not Yet Analyzed';
+        case 'year': return hasAiMeta ? 'Year Unknown' : 'Not Yet Analyzed';
+        case 'school': return hasAiMeta ? 'School Unknown' : 'Not Yet Analyzed';
+        case 'medium': return hasAiMeta ? 'Medium Unknown' : 'Not Yet Analyzed';
+        default: return 'Unknown';
+      }
+    }
+
     function getSortedGroupedItems(items) {
-      const SENTINEL = '\uffff';
+      const MISSING_PREFIX = '\uffff';
       const yearBuckets = currentSort === 'year' ? computeYearBuckets(items) : [];
+      const missingKey = (item) => MISSING_PREFIX + missingGroupLabel(item, currentSort);
       const getGroupKey = (item) => {
         const meta = artworkMeta[item.content_id];
         const ai = meta?.ai_meta;
         switch (currentSort) {
-          case 'artist': return ai?.artist || SENTINEL;
-          case 'year': return getYearBucket(ai?.year, yearBuckets) || SENTINEL;
-          case 'school': return (ai?.school && ai.school !== 'N/A') ? ai.school : SENTINEL;
-          case 'medium': return ai?.medium || SENTINEL;
+          case 'artist': return ai?.artist || missingKey(item);
+          case 'year': return getYearBucket(ai?.year, yearBuckets) || missingKey(item);
+          case 'school': return (ai?.school && ai.school !== 'N/A') ? ai.school : missingKey(item);
+          case 'medium': return ai?.medium || missingKey(item);
           case 'title': {
             const t = getArtworkTitle(item);
             const ch = t.charAt(0).toUpperCase();
@@ -2534,22 +2547,27 @@
           }
           case 'date_added': {
             const d = meta?.uploaded_at;
-            return d ? d.substring(0, 7) : SENTINEL;
+            return d ? d.substring(0, 7) : missingKey(item);
           }
           default: return '';
         }
       };
 
       const getSortVal = (item) => {
-        if (currentSort === 'year') return parseYearForSort(artworkMeta[item.content_id]?.ai_meta?.year);
-        if (currentSort === 'date_added') return artworkMeta[item.content_id]?.uploaded_at || SENTINEL;
+        if (currentSort === 'year') {
+          const y = parseYearForSort(artworkMeta[item.content_id]?.ai_meta?.year);
+          return y === Infinity ? getGroupKey(item) : y;
+        }
+        if (currentSort === 'date_added') return artworkMeta[item.content_id]?.uploaded_at || MISSING_PREFIX;
         return getGroupKey(item).toLowerCase();
       };
 
       const sorted = [...items].sort((a, b) => {
         const va = getSortVal(a), vb = getSortVal(b);
-        if (va === SENTINEL && vb !== SENTINEL) return 1;
-        if (vb === SENTINEL && va !== SENTINEL) return -1;
+        const aMissing = String(va).startsWith(MISSING_PREFIX);
+        const bMissing = String(vb).startsWith(MISSING_PREFIX);
+        if (aMissing && !bMissing) return 1;
+        if (bMissing && !aMissing) return -1;
         const cmp = va < vb ? -1 : va > vb ? 1 : 0;
         return currentSort === 'date_added' ? -cmp : cmp;
       });
@@ -2560,7 +2578,9 @@
       for (const item of sorted) {
         const key = getGroupKey(item);
         if (key !== lastKey) {
-          const label = key === SENTINEL ? 'Not Yet Analyzed' : formatGroupLabel(key, currentSort);
+          const label = key.startsWith(MISSING_PREFIX)
+            ? key.slice(MISSING_PREFIX.length)
+            : formatGroupLabel(key, currentSort);
           result.push({ type: 'header', label, count: 0 });
           headerIdx = result.length - 1;
           lastKey = key;
