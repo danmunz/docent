@@ -94,3 +94,36 @@ class TestObserverCleanup:
             "(before creating the new observer) to prevent stale batch fetches "
             "from a previous grid render"
         )
+
+
+class TestArtworkGrouping:
+    """Grouping fallbacks should distinguish unanalyzed art from missing fields."""
+
+    def test_missing_group_labels_are_sort_specific(self, js_source):
+        fn_match = re.search(
+            r"function missingGroupLabel\(item, sortField\)\s*\{(.*?)\n\s*\}",
+            js_source,
+            re.DOTALL,
+        )
+        assert fn_match, "Cannot find missingGroupLabel()"
+        fn_body = fn_match.group(1)
+
+        assert "case 'date_added': return 'Date Unknown'" in fn_body
+        assert "hasAiMeta ? 'Artist Unknown' : 'Not Yet Analyzed'" in fn_body
+        assert "hasAiMeta ? 'Year Unknown' : 'Not Yet Analyzed'" in fn_body
+        assert "hasAiMeta ? 'School Unknown' : 'Not Yet Analyzed'" in fn_body
+        assert "hasAiMeta ? 'Medium Unknown' : 'Not Yet Analyzed'" in fn_body
+
+    def test_grouping_uses_distinct_missing_bucket_keys(self, js_source):
+        fn_match = re.search(
+            r"function getSortedGroupedItems\(items\)\s*\{(.*?)\n\s*// --- Init ---",
+            js_source,
+            re.DOTALL,
+        )
+        assert fn_match, "Cannot find getSortedGroupedItems()"
+        fn_body = fn_match.group(1)
+
+        assert "const MISSING_PREFIX" in fn_body
+        assert "MISSING_PREFIX + missingGroupLabel(item, currentSort)" in fn_body
+        assert "key.slice(MISSING_PREFIX.length)" in fn_body
+        assert "key === SENTINEL ? 'Not Yet Analyzed'" not in fn_body
