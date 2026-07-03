@@ -218,6 +218,17 @@
   button.primary:hover { background: var(--color-charcoal); box-shadow: var(--shadow-pop) var(--color-soot); }
   button.danger { background: var(--color-gallery-white); border-color: var(--danger); color: var(--danger); }
   button.danger:hover { background: var(--color-vermillion-50); box-shadow: 3px 3px 0 var(--danger); }
+  /* Demoted/secondary actions — visually recedes so primary actions dominate. */
+  button.ghost {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text2);
+    box-shadow: none;
+    text-transform: none;
+    font-weight: 500;
+    letter-spacing: normal;
+  }
+  button.ghost:hover { border-color: var(--text2); color: var(--text); box-shadow: none; transform: none; }
   button:disabled { opacity: 0.4; cursor: default; box-shadow: none; transform: none; }
 
   select {
@@ -449,7 +460,7 @@
     text-align: center;
     color: var(--text2);
     cursor: pointer;
-    transition: border-color 0.2s, background 0.2s;
+    transition: border-color 0.2s, background 0.2s, padding 0.2s;
     margin: var(--space-lg);
     background: var(--color-linen);
   }
@@ -464,6 +475,16 @@
     background: var(--color-ultramarine-50);
   }
 
+  /* Collapsed: a review session is active, so the drop target recedes to a
+     slim "+ Add more files" bar instead of holding its full empty-state size. */
+  .upload-zone.collapsed {
+    padding: 10px var(--space-md);
+  }
+  .upload-zone.collapsed p {
+    font-size: 14px;
+    margin: 0;
+  }
+
   @keyframes upload-pulse {
     0%, 100% { box-shadow: 0 0 0 0 rgba(43,79,160,0.15); }
     50% { box-shadow: 0 0 20px 4px rgba(43,79,160,0.1); }
@@ -474,102 +495,126 @@
 
   .upload-zone input[type="file"] { display: none; }
 
+  /* Step indicator — shown only while a review session is active, so the
+     Select -> Review/Crop -> Upload sequence is visible without hovering. */
+  .upload-step-bar {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    margin: var(--space-md) var(--space-lg) 0;
+    font-size: 15px;
+    color: var(--text2);
+    font-family: var(--font-display);
+  }
+  .upload-step-bar.active { display: flex; }
+  .upload-step-bar .step { color: var(--text2); }
+  .upload-step-bar .step.current { color: var(--accent); font-weight: 600; }
+  .upload-step-bar .step-sep { color: var(--border); }
+
   /* Upload preview */
   .upload-preview {
     display: none;
-    margin: 0 32px 24px;
+    margin: 12px 32px 24px;
     padding: 16px;
     background: var(--surface);
     border-radius: var(--radius);
     border: 1px solid var(--border);
   }
 
-  .upload-preview.active { display: flex; gap: 20px; align-items: flex-start; }
+  .upload-preview.active { display: flex; flex-direction: column; gap: 14px; }
 
   .upload-thumb-strip {
     display: flex;
-    gap: 8px;
+    gap: 10px;
     overflow-x: auto;
-    max-width: 60%;
-    padding: 4px 0;
+    width: 100%;
+    padding: 4px 0 8px;
     align-items: flex-start;
-    flex-shrink: 0;
   }
 
   .upload-thumb-item {
     flex-shrink: 0;
-    width: 80px;
+    width: 160px;
     position: relative;
     text-align: center;
   }
 
+  /* object-fit: contain + a fixed letterbox box, NOT cover — the whole point
+     of reviewing here is seeing what (if anything) needs cropping, which a
+     cropped-to-fill square thumbnail actively hides. */
   .upload-thumb-item img {
-    width: 80px;
-    height: 80px;
-    object-fit: cover;
+    width: 160px;
+    height: 120px;
+    object-fit: contain;
     border-radius: 4px;
     background: #000;
+    display: block;
   }
 
   .upload-thumb-item .thumb-name {
-    font-size: 10px;
+    font-size: 13px;
     color: var(--text2);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: 80px;
-    margin-top: 2px;
+    max-width: 160px;
+    margin-top: 5px;
   }
 
-  .upload-thumb-item .thumb-remove {
-    position: absolute;
-    top: -4px;
-    right: -4px;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: var(--danger);
-    color: #fff;
-    font-size: 12px;
-    cursor: pointer;
+  /* Status dot + label and text-link actions live BELOW the thumbnail, not
+     overlaid on it — the overlay icons + 9px badge were illegible without
+     squinting. Same horizontal-scroll footprint, just legible. */
+  .thumb-status {
     display: flex;
     align-items: center;
     justify-content: center;
-    border: none;
-    padding: 0;
-    line-height: 1;
+    gap: 5px;
+    font-size: 14px;
+    margin-top: 7px;
+    white-space: normal;
+    line-height: 1.3;
   }
+  .thumb-status .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .thumb-status.pending { color: var(--text2); }
+  .thumb-status.pending .dot { background: var(--border); }
+  .thumb-status.ok { color: var(--text2); }
+  .thumb-status.ok .dot { background: rgba(68, 204, 102, 0.9); }
+  .thumb-status.warn { color: var(--text); font-weight: 600; }
+  .thumb-status.warn .dot { background: rgba(255, 180, 0, 0.95); }
 
-  .compliance-badge {
-    position: absolute;
-    bottom: 20px;
-    left: 2px;
-    font-size: 9px;
-    font-weight: 600;
-    padding: 1px 5px;
-    border-radius: 3px;
+  .thumb-actions {
+    margin-top: 4px;
     white-space: nowrap;
-    line-height: 1.4;
   }
-
-  .compliance-ok {
-    background: rgba(68, 204, 102, 0.85);
-    color: #000;
+  .thumb-action-link {
+    background: none;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    font-size: 13px;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: normal;
+    color: var(--text2);
+    cursor: pointer;
+    text-decoration: underline;
   }
-
-  .compliance-warn {
-    background: rgba(255, 180, 0, 0.9);
-    color: #000;
-  }
+  .thumb-action-link:hover { color: var(--accent); box-shadow: none; transform: none; }
+  .thumb-action-sep { color: var(--border); margin: 0 4px; }
 
   .upload-preview .upload-controls {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
   }
 
   .upload-preview label {
-    font-size: 13px;
+    font-size: 14px;
     color: var(--text2);
   }
 
@@ -577,6 +622,34 @@
     display: flex;
     gap: 12px;
     align-items: center;
+  }
+
+  /* Footer row: matte choice on the left, status + primary actions on the
+     right — one row instead of a tall stacked block, so review stays compact. */
+  .upload-footer-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .upload-matte-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .upload-matte-group label { white-space: nowrap; }
+  .upload-footer-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .upload-status-text {
+    font-size: 14px;
+    color: var(--text2);
+    margin: 0;
+    white-space: nowrap;
   }
 
   .upload-progress {
@@ -631,6 +704,19 @@
     font-size: 11px;
     color: var(--text2);
   }
+
+  /* Two explicit, checked-off stages instead of one swapped text label —
+     mirrors the upload-step-bar pattern so "where am I" stays consistent. */
+  .progress-stages {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+  }
+  .progress-stages .stage { color: var(--text2); }
+  .progress-stages .stage.active { color: var(--accent); font-weight: 600; }
+  .progress-stages .stage.done { color: var(--text2); }
+  .progress-stages .stage .mark { display: inline-block; width: 14px; }
 
   /* Detail panel title */
   .detail-title-wrap {
@@ -1119,7 +1205,7 @@
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 24px;
-    max-width: 700px;
+    max-width: 860px;
     width: 95vw;
   }
 
@@ -1137,23 +1223,41 @@
     margin-bottom: 8px;
   }
 
+  .crop-canvas-row {
+    display: flex;
+    align-items: stretch;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
   .crop-canvas-wrap {
     position: relative;
-    width: 100%;
+    flex: 1 1 auto;
+    min-width: 0;
     aspect-ratio: 16/9;
     background: #000;
     border-radius: var(--radius);
     overflow: hidden;
     cursor: grab;
-    margin-bottom: 16px;
   }
 
   .crop-canvas-wrap:active { cursor: grabbing; }
 
-  .crop-canvas-wrap canvas {
+  .crop-canvas-wrap canvas,
+  .crop-minimap-wrap canvas {
     width: 100%;
     height: 100%;
     display: block;
+  }
+
+  .crop-minimap-wrap {
+    width: 170px;
+    flex: 0 0 170px;
+    min-height: 120px;
+    background: #000;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
   }
 
   .crop-controls {
@@ -1179,14 +1283,50 @@
     min-width: 40px;
   }
 
+  .crop-caption {
+    font-size: 13px;
+    color: var(--text);
+    margin-bottom: 4px;
+    min-height: 18px;
+  }
+
+  .crop-upsell {
+    font-size: 12px;
+    color: var(--text2);
+    margin-bottom: 8px;
+  }
+
   .crop-info {
     font-size: 12px;
     color: var(--text2);
     margin-bottom: 16px;
   }
 
+  /* Grouped by intent: the primary action stands alone and prominent; the
+     two "pick a starting point" resets sit together; the three "leave this
+     image" exits are visually demoted and separated by a divider. */
   .crop-actions {
     display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .crop-actions-reset {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .crop-actions-label {
+    font-size: 14px;
+    color: var(--text2);
+  }
+  .crop-actions-divider {
+    border-top: 1px solid var(--border);
+    margin: 2px 0;
+  }
+  .crop-actions-exit {
+    display: flex;
+    justify-content: flex-end;
     gap: 8px;
     flex-wrap: wrap;
   }
@@ -1803,6 +1943,12 @@
     .atmosphere-content { padding: 20px; }
     .atmosphere-picks { flex-direction: column; }
     .atmosphere-pick-card .pick-img { max-height: 160px; }
+    .crop-canvas-row { flex-direction: column; }
+    .crop-minimap-wrap {
+      width: 100%;
+      flex-basis: 132px;
+      min-height: 132px;
+    }
   }
 
   /* Entrance animation */
@@ -1929,26 +2075,38 @@
   </header>
 
   <main>
+  <div class="upload-step-bar" id="uploadStepBar">
+    <span class="step" id="stepReview">Review</span>
+    <span class="step-sep">&rarr;</span>
+    <span class="step" id="stepCrop">Crop</span>
+    <span class="step-sep">&rarr;</span>
+    <span class="step" id="stepUpload">Upload</span>
+  </div>
+
   <div class="upload-zone" id="uploadZone">
-    <h2 style="font-size:inherit;font-weight:inherit">Upload Artwork</h2>
-    <p>Drag art here. Your TV deserves it.</p>
+    <h2 id="uploadZoneTitle" style="font-size:inherit;font-weight:inherit">Upload Artwork</h2>
+    <p id="uploadZoneSubtitle">Drag art here. Your TV deserves it.</p>
     <input type="file" id="fileInput" accept="image/*" multiple>
   </div>
 
   <div class="upload-preview" id="uploadPreview">
     <div class="upload-thumb-strip" id="uploadThumbStrip"></div>
     <div class="upload-controls" id="uploadControls">
-      <label>Matte Style</label>
-      <div class="upload-matte-row">
-        <select id="uploadMatte">
-          <option value="none">None</option>
-        </select>
+      <div class="upload-footer-row">
+        <div class="upload-matte-group">
+          <label>Matte Style</label>
+          <div class="upload-matte-row">
+            <select id="uploadMatte">
+              <option value="none">None</option>
+            </select>
+          </div>
+        </div>
+        <div class="upload-footer-actions">
+          <p id="uploadStatus" class="upload-status-text"></p>
+          <button class="primary" id="uploadSubmitBtn" onclick="doUpload()" title="Upload selected artwork to your Frame TV">Upload to Frame</button>
+          <button class="ghost" onclick="cancelUpload()" title="Cancel upload and clear selection">Cancel</button>
+        </div>
       </div>
-      <div style="display:flex;gap:8px;margin-top:8px">
-        <button class="primary" onclick="doUpload()" title="Upload selected artwork to your Frame TV">Upload to Frame</button>
-        <button onclick="cancelUpload()" title="Cancel upload and clear selection">Cancel</button>
-      </div>
-      <p id="uploadStatus" style="font-size:12px;color:var(--text2);margin-top:4px"></p>
     </div>
     <div class="upload-progress" id="uploadProgress" style="display:none"></div>
   </div>
@@ -2031,21 +2189,37 @@
     <div class="crop-modal-content">
       <div class="crop-queue-indicator" id="cropQueueIndicator"></div>
       <h3>Adjust Image &mdash; <span id="cropFileName"></span></h3>
-      <div class="crop-canvas-wrap" id="cropCanvasWrap">
-        <canvas id="cropCanvas"></canvas>
+      <div class="crop-canvas-row">
+        <div class="crop-canvas-wrap" id="cropCanvasWrap">
+          <canvas id="cropCanvas"></canvas>
+        </div>
+        <div class="crop-minimap-wrap">
+          <canvas id="cropMinimap"></canvas>
+        </div>
       </div>
       <div class="crop-controls">
         <label>Zoom</label>
         <input type="range" id="cropZoom" min="100" max="400" value="100" oninput="onCropZoom(this.value)">
         <span id="cropZoomLabel">100%</span>
       </div>
+      <div class="crop-caption" id="cropCaption"></div>
+      <div class="crop-upsell" id="cropUpsell" style="display:none">
+        Crops can be sharper with <a href="#" onclick="openSettingsFromCrop();return false;">Enhanced Mode</a>.
+      </div>
       <div class="crop-info" id="cropInfo"></div>
       <div class="crop-actions">
-        <button class="primary" onclick="applyCrop()" title="Apply the current crop selection">Apply Crop</button>
-        <button onclick="autoCrop()" title="Automatically fit image to 16:9">Auto-fit</button>
-        <button onclick="skipCropFile()" title="Upload without cropping">Skip (upload as-is)</button>
-        <button onclick="removeCropFile()" title="Remove this file from upload queue">Remove</button>
-        <button onclick="closeCropModal()" title="Cancel crop and return">Cancel</button>
+        <button class="primary" onclick="applyCrop()" title="Save this crop and continue">Apply Crop</button>
+        <div class="crop-actions-reset">
+          <span class="crop-actions-label">Reset to:</span>
+          <button class="ghost" onclick="reapplySmartCrop()" title="Return to the suggested crop, discarding manual adjustments">Smart Crop</button>
+          <button class="ghost" onclick="autoCrop()" title="Reset to a plain centered 16:9 crop">Center</button>
+        </div>
+        <div class="crop-actions-divider"></div>
+        <div class="crop-actions-exit">
+          <button class="ghost" id="cropSkipBtn" onclick="skipCropFile()" title="Upload this image without cropping it to 16:9">Skip (upload as-is)</button>
+          <button class="danger" onclick="removeCropFile()" title="Delete this image — it won't be uploaded">Remove</button>
+          <button class="ghost" onclick="closeCropModal()" title="Close without saving — resume by clicking Upload to Frame again">Cancel</button>
+        </div>
       </div>
     </div>
   </div>
@@ -2118,12 +2292,12 @@
       <h3>AI Settings</h3>
 
       <div class="settings-section">
-        <div class="settings-section-title">Identification</div>
-        <div class="settings-hint" style="margin-bottom:8px">Required for auto-identifying artwork titles, artists, and dates. Without it, you'll need to enter metadata manually.</div>
+        <div class="settings-section-title">Enhanced Mode (Google Vision)</div>
+        <div class="settings-hint" style="margin-bottom:8px">One Google Vision key makes Docent smarter two ways: it <strong>identifies</strong> artworks (titles, artists, dates) by reverse image search, and it suggests <strong>better crops</strong> that frame the subject. Without a key, Docent still smart-crops locally and you enter metadata manually.</div>
         <div class="settings-group">
           <label class="settings-toggle">
             <input type="checkbox" id="useGoogleVision">
-            Use Google Vision to identify artworks
+            Use Google Vision for identification &amp; smarter cropping
           </label>
         </div>
         <div class="settings-group" id="gvKeyGroup">
@@ -2237,6 +2411,7 @@
     · <a href="https://github.com/sponsors/danmunz" target="_blank" rel="noopener">Sponsor me on GitHub</a>
   </footer>
 
+  <script src="/assets/js/smartcrop.js"></script>
   <script>
     let artItems = [];
     let currentId = null;
@@ -2247,6 +2422,7 @@
     let mattes = null;
     let pendingFiles = [];
     let pendingAnalysis = [];
+    let uploadStage = 'review';  // 'review' | 'crop' | 'upload' — drives #uploadStepBar
     let collections = [];
     let activeCollectionId = null;
     const thumbCache = {};
@@ -3590,19 +3766,91 @@
         showToast(`${oversized.map(f => f.name).join(', ')} exceed${oversized.length === 1 ? 's' : ''} the ${MAX_MB}MB limit`, 'error');
         return;
       }
-      pendingFiles = [...files];
-      pendingAnalysis = new Array(pendingFiles.length).fill(null);
+      // Append to an in-progress review batch rather than replacing it — the
+      // collapsed "+ Add more files" zone reads as "add", and silently
+      // discarding crops already made on the current batch was a footgun.
+      const startIdx = pendingFiles.length;
+      pendingFiles = pendingFiles.concat([...files]);
+      pendingAnalysis = pendingAnalysis.concat(new Array(files.length).fill(null));
+      setUploadStage('review');
       renderPendingFiles();
-      pendingFiles.forEach((file, idx) => {
+      [...files].forEach((file, i) => {
+        const idx = startIdx + i;
         analyzeImage(file).then(analysis => {
           pendingAnalysis[idx] = analysis;
-          const badge = document.getElementById('compBadge_' + idx);
-          if (badge) {
-            badge.innerHTML = getComplianceBadgeHTML(analysis);
-            badge.className = 'compliance-badge ' + (analysis.compliant ? 'compliance-ok' : 'compliance-warn');
+          const status = document.getElementById('thumbStatus_' + idx);
+          if (status) {
+            const s = getThumbStatusHTML(analysis);
+            status.innerHTML = s.html;
+            status.className = 'thumb-status ' + s.cls;
           }
+          updateUploadButtonLabel();
         });
       });
+      updateUploadButtonLabel();
+    }
+
+    // Toggle the drop zone between its full empty-state prompt and a slim,
+    // muted "+ Add more files" bar once a review session is active. Stays a
+    // functional drop target either way — it recedes, it doesn't disappear.
+    function setUploadZoneCollapsed(collapsed) {
+      const zone = document.getElementById('uploadZone');
+      zone.classList.toggle('collapsed', collapsed);
+      document.getElementById('uploadZoneTitle').style.display = collapsed ? 'none' : '';
+      document.getElementById('uploadZoneSubtitle').textContent =
+        collapsed ? '+ Add more files' : 'Drag art here. Your TV deserves it.';
+    }
+
+    // Drives the Review -> Crop -> Upload step bar. Crop/Upload only ever
+    // become "current" when that stage actually starts (queue opens / final
+    // upload begins) — cancelling mid-crop leaves it on Crop, which is the
+    // point: unfinished work stays visibly unfinished.
+    function setUploadStage(stage) {
+      uploadStage = stage;
+      const bar = document.getElementById('uploadStepBar');
+      bar.classList.toggle('active', pendingFiles.length > 0);
+      ['stepReview', 'stepCrop', 'stepUpload'].forEach(id => {
+        document.getElementById(id).classList.remove('current');
+      });
+      const map = { review: 'stepReview', crop: 'stepCrop', upload: 'stepUpload' };
+      const el = document.getElementById(map[stage]);
+      if (el) el.classList.add('current');
+    }
+
+    // Reflect whether any pending image still needs a 16:9 crop, so the upload
+    // button doesn't imply an immediate upload when a review step is coming.
+    // Also drives the step bar's Crop segment and the footer status line.
+    function updateUploadButtonLabel() {
+      const btn = document.getElementById('uploadSubmitBtn');
+      if (!btn) return;
+      const analyzed = pendingAnalysis.filter(a => a !== null).length;
+      const needCrop = pendingAnalysis.filter(a => a && !a.compliant && a.issues.includes('not-16:9')).length;
+      if (needCrop > 0) {
+        btn.textContent = 'Adjust Crops & Upload';
+        btn.title = "Some images need a 16:9 crop — you'll review them before they're sent to the TV";
+      } else {
+        btn.textContent = 'Upload to Frame';
+        btn.title = 'Upload selected artwork to your Frame TV';
+      }
+
+      const stepCrop = document.getElementById('stepCrop');
+      if (stepCrop) {
+        stepCrop.classList.remove('done');
+        if (analyzed < pendingFiles.length) {
+          stepCrop.textContent = 'Crop';
+        } else if (needCrop > 0) {
+          stepCrop.textContent = `Crop (${needCrop} needed)`;
+        } else {
+          stepCrop.textContent = '✓ No crop needed';
+          stepCrop.classList.add('done');
+        }
+      }
+
+      const status = document.getElementById('uploadStatus');
+      if (status && pendingFiles.length) {
+        const base = `${pendingFiles.length} file${pendingFiles.length > 1 ? 's' : ''} selected`;
+        status.textContent = needCrop > 0 ? `${base} — ${needCrop} need${needCrop === 1 ? 's' : ''} cropping` : `${base} — ready`;
+      }
     }
 
     function analyzeImage(file) {
@@ -3613,7 +3861,10 @@
           const aspect = w / h;
           const target = 16 / 9;
           const issues = [];
-          if (Math.abs(aspect - target) > 0.01) issues.push('not-16:9');
+          // Strict trigger: anything not (near-)exactly 16:9 gets a smart-crop
+          // pass, since the local seed is free. Epsilon only absorbs float dust
+          // so genuine 3840x2160 uploads don't needlessly queue.
+          if (Math.abs(aspect - target) > 0.002) issues.push('not-16:9');
           if (w < 3840 || h < 2160) issues.push('low-res');
           if (w > 3840) issues.push('oversized');
           resolve({ width: w, height: h, aspect, compliant: issues.length === 0, issues });
@@ -3624,20 +3875,186 @@
       });
     }
 
-    function getComplianceBadgeHTML(analysis) {
-      if (analysis.compliant) return '\u2713';
+    // Status dot + short label shown below each thumbnail (not overlaid on
+    // the image \u2014 that's what made the old 9px corner badge illegible).
+    function getThumbStatusHTML(analysis) {
+      const dot = '<span class="dot"></span>';
+      if (!analysis) return { cls: 'pending', html: dot + 'Checking\u2026' };
+      if (analysis.compliant) return { cls: 'ok', html: dot + 'Ready' };
       const labels = [];
-      if (analysis.issues.includes('not-16:9')) labels.push('Not 16:9');
+      if (analysis.issues.includes('not-16:9')) labels.push('Needs crop');
       if (analysis.issues.includes('low-res')) labels.push('Low res');
       if (analysis.issues.includes('oversized')) labels.push('Large');
-      return '\u26A0 ' + labels.join(', ');
+      if (analysis.issues.includes('unreadable')) labels.push('Unreadable');
+      return { cls: 'warn', html: dot + labels.join(', ') };
     }
 
     // --- Crop Editor ---
-    let cropState = { file: null, img: null, zoom: 1, offsetX: 0, offsetY: 0, dragging: false, dragStartX: 0, dragStartY: 0, fileIndex: -1 };
+    let cropState = { file: null, img: null, zoom: 1, offsetX: 0, offsetY: 0, dragging: false, dragStartX: 0, dragStartY: 0, fileIndex: -1, seedSource: '', userAdjusted: false, bestBox: null, bestSource: '' };
     let cropQueue = [];
     let cropQueueIndex = 0;
     let cropResolve = null;
+    let cropPrefetch = new Map();      // File -> Promise<crop-hint response | null>
+    let cropMinimapBase = null;
+    let enhancedModeAvailable = null;  // cached: Google Vision key configured?
+
+    // Is Enhanced Mode (a Google Vision key) configured? Cached per session.
+    async function checkEnhancedMode() {
+      if (enhancedModeAvailable !== null) return enhancedModeAvailable;
+      try {
+        const cfg = await api('/ai/config');
+        enhancedModeAvailable = !!(cfg.use_google_vision && cfg.google_vision && cfg.google_vision.api_key);
+      } catch { enhancedModeAvailable = false; }
+      return enhancedModeAvailable;
+    }
+
+    // Only spend a cloud crop-hint call when the image is meaningfully off 16:9
+    // (>2% relative). Near-16:9 images are seeded locally for free.
+    function visionWorthwhile(analysis) {
+      if (!analysis || !analysis.aspect) return false;
+      const target = 16 / 9;
+      return Math.abs(analysis.aspect - target) / target > 0.02;
+    }
+
+    // Kick off Google crop hints for eligible queued images so cloud latency
+    // never blocks the modal. Keyed by File so it survives index splices.
+    async function prefetchCropHints(indices) {
+      if (!(await checkEnhancedMode())) return;
+      for (const i of indices) {
+        const file = pendingFiles[i];
+        if (!file || cropPrefetch.has(file)) continue;
+        if (!visionWorthwhile(pendingAnalysis[i])) continue;
+        const form = new FormData();
+        form.append('file', file);
+        cropPrefetch.set(file, fetch('/api/crop-hint', { method: 'POST', body: form })
+          .then(r => r.ok ? r.json() : null)
+          .catch(() => null));
+      }
+    }
+
+    // Expand an arbitrary salient box to the nearest 16:9 box centered on it,
+    // clamped to image bounds. Without this, a non-16:9 seed letterboxes.
+    function expandTo169(x, y, w, h, imgW, imgH) {
+      const target = 16 / 9;
+      let bw = w, bh = h;
+      if (bw / bh > target) bh = bw / target; else bw = bh * target;
+      if (bw > imgW) { bw = imgW; bh = bw / target; }
+      if (bh > imgH) { bh = imgH; bw = bh * target; }
+      const cx = x + w / 2, cy = y + h / 2;
+      const nx = Math.max(0, Math.min(imgW - bw, cx - bw / 2));
+      const ny = Math.max(0, Math.min(imgH - bh, cy - bh / 2));
+      return { x: nx, y: ny, w: bw, h: bh };
+    }
+
+    // Run smartcrop.js on a small downscale (speed) and return a source-pixel box.
+    async function smartCropSeedBox(img) {
+      const maxEdge = 256;
+      const scale = Math.min(1, maxEdge / Math.max(img.naturalWidth, img.naturalHeight));
+      const sw = Math.max(1, Math.round(img.naturalWidth * scale));
+      const sh = Math.max(1, Math.round(img.naturalHeight * scale));
+      const c = document.createElement('canvas');
+      c.width = sw; c.height = sh;
+      c.getContext('2d').drawImage(img, 0, 0, sw, sh);
+      const result = await SmartCrop.crop(c, { width: 16, height: 9 });
+      const t = result.topCrop;
+      return { x: t.x / scale, y: t.y / scale, w: t.width / scale, h: t.height / scale };
+    }
+
+    // Invert applyCrop()'s forward transform: map a source-pixel 16:9 box to the
+    // viewport's { zoom, offsetX, offsetY }. clampOffsets() is the safe backstop.
+    function seedSmartCrop(srcX, srcY, srcW, srcH) {
+      const canvas = document.getElementById('cropCanvas');
+      const viewW = canvas.width, viewH = canvas.height;
+      const img = cropState.img;
+      if (!img || srcW <= 0 || srcH <= 0) return;
+      const bs = getCropBaseScale();
+      const zoom = viewW / (srcW * bs);
+      const drawW = img.naturalWidth * bs * zoom;
+      const drawH = img.naturalHeight * bs * zoom;
+      const dx = -srcX * viewW / srcW;
+      const dy = -srcY * viewH / srcH;
+      cropState.zoom = zoom;
+      cropState.offsetX = (dx - (viewW - drawW) / 2) / (bs * zoom);
+      cropState.offsetY = (dy - (viewH - drawH) / 2) / (bs * zoom);
+      const slider = document.getElementById('cropZoom');
+      if (slider) {
+        slider.value = Math.round(Math.min(400, Math.max(100, cropState.zoom * 100)));
+        document.getElementById('cropZoomLabel').textContent = slider.value + '%';
+      }
+      clampOffsets();
+      drawCropCanvas();
+      updateCropInfo();
+    }
+
+    // Apply a source-pixel box as the modal seed, unless the user has already
+    // taken over or moved on. Returns false if the seed was suppressed.
+    function applySeedBox(fileIndex, img, box, source) {
+      // User advanced the queue — this result is for a different image now.
+      if (cropState.fileIndex !== fileIndex || cropState.img !== img) return false;
+      if (!box) return false;
+      const e169 = expandTo169(box.x, box.y, box.w, box.h, img.naturalWidth, img.naturalHeight);
+      // Cache regardless of whether we apply it now, so "Smart Crop" can return
+      // to this suggestion later even if the user already took over.
+      cropState.bestBox = e169;
+      cropState.bestSource = source;
+      if (cropState.userAdjusted) return false;  // don't clobber a manual edit
+      cropState.seedSource = source;
+      seedSmartCrop(e169.x, e169.y, e169.w, e169.h);
+      updateCropCaption(source);
+      return true;
+    }
+
+    // Re-apply the last computed suggestion (smartcrop or Google), discarding
+    // any manual drag/zoom/Center. The one way back to the seed once you've
+    // started adjusting it by hand.
+    function reapplySmartCrop() {
+      if (!cropState.bestBox) return;
+      cropState.userAdjusted = false;
+      cropState.seedSource = cropState.bestSource;
+      seedSmartCrop(cropState.bestBox.x, cropState.bestBox.y, cropState.bestBox.w, cropState.bestBox.h);
+      updateCropCaption(cropState.bestSource);
+    }
+
+    // Seed the modal: apply the local smartcrop floor immediately (no wait), then
+    // upgrade to the prefetched Google hint when it arrives — but never overwrite
+    // adjustments the user made while the cloud hint was in flight.
+    async function seedBestCrop(fileIndex) {
+      const img = cropState.img;
+      const file = pendingFiles[fileIndex];
+      if (!img || !file || typeof SmartCrop === 'undefined') { updateCropCaption(''); return; }
+
+      // 1. Local floor — fast, applied right away so there's no center-crop gap.
+      let localBox = null;
+      try { localBox = await smartCropSeedBox(img); } catch (e) { console.debug('smartcrop failed', e); }
+      const seeded = applySeedBox(fileIndex, img, localBox, 'smartcrop');
+      if (!seeded && !cropPrefetch.get(file)) { if (!cropState.userAdjusted) updateCropCaption(''); return; }
+
+      // 2. Cloud ceiling — upgrade when it resolves, unless the user has taken over.
+      const pf = cropPrefetch.get(file);
+      if (!pf) return;
+      let g = null;
+      try { g = await pf; } catch (e) { console.debug('crop-hint failed', e); }
+      if (g && g.box) applySeedBox(fileIndex, img, g.box, 'google');
+    }
+
+    function updateCropCaption(source) {
+      const cap = document.getElementById('cropCaption');
+      const upsell = document.getElementById('cropUpsell');
+      if (source === 'google') {
+        cap.textContent = 'Smart crop by Google Vision — drag to adjust.';
+      } else if (source === 'smartcrop') {
+        cap.textContent = 'Suggested crop — drag to adjust.';
+      } else {
+        cap.textContent = '';
+      }
+      // Upsell only when no key is configured and we're on a free local seed.
+      upsell.style.display = (enhancedModeAvailable === false && source !== 'google') ? 'block' : 'none';
+    }
+
+    function openSettingsFromCrop() {
+      closeCropModal();
+      if (typeof openSettings === 'function') openSettings();
+    }
 
     function openCropModal(fileIndex) {
       const file = pendingFiles[fileIndex];
@@ -3647,16 +4064,31 @@
       cropState.zoom = 1;
       cropState.offsetX = 0;
       cropState.offsetY = 0;
+      cropState.seedSource = '';
+      cropState.bestBox = null;
+      cropState.bestSource = '';
       document.getElementById('cropFileName').textContent = file.name;
+      document.getElementById('cropCaption').textContent = '';
+      document.getElementById('cropUpsell').style.display = 'none';
+      // Skip ("upload as-is") only makes sense in the mandatory non-16:9 queue —
+      // editing an already-compliant image standalone makes Skip redundant with Cancel.
+      const inQueue = cropQueue.includes(fileIndex);
+      document.getElementById('cropSkipBtn').style.display = inQueue ? '' : 'none';
       const img = new Image();
       img.onload = () => {
         cropState.img = img;
-        autoCrop();
+        cropMinimapBase = null;
+        autoCrop();  // instant center baseline (sets userAdjusted; reset below before seeding)
         document.getElementById('cropModal').classList.add('active');
         requestAnimationFrame(() => {
           setupCropCanvas();
+          renderCropMinimapBase();
           drawCropCanvas();
           updateCropInfo();
+          // Clear the flag set by the internal autoCrop above, so the smart seed
+          // can apply — but any *user* action from here on suppresses late hints.
+          cropState.userAdjusted = false;
+          seedBestCrop(fileIndex);
         });
       };
       img.src = URL.createObjectURL(file);
@@ -3675,6 +4107,9 @@
       if (cropState.img) URL.revokeObjectURL(cropState.img.src);
       cropState.img = null;
       cropState.file = null;
+      cropMinimapBase = null;
+      const minimap = document.getElementById('cropMinimap');
+      if (minimap) minimap.getContext('2d').clearRect(0, 0, minimap.width, minimap.height);
       if (cropResolve) { cropResolve('cancel'); cropResolve = null; }
     }
 
@@ -3684,12 +4119,17 @@
       canvas.width = wrap.clientWidth * (window.devicePixelRatio || 1);
       canvas.height = Math.round(canvas.width * 9 / 16);
 
-      canvas.onmousedown = e => { cropState.dragging = true; cropState.dragStartX = e.clientX; cropState.dragStartY = e.clientY; };
+      canvas.onmousedown = e => { cropState.dragging = true; cropState.userAdjusted = true; cropState.dragStartX = e.clientX; cropState.dragStartY = e.clientY; };
       canvas.onmousemove = e => {
         if (!cropState.dragging) return;
+        // offsetX/Y are consumed downstream (drawCropCanvas/clampOffsets/applyCrop)
+        // as offset*bs*zoom in *internal* canvas pixels, so a CSS-pixel mouse
+        // delta must be scaled up to internal pixels (* scale) then converted
+        // back through that same factor (/ bs / zoom) to track the cursor 1:1.
         const scale = getCropScale();
-        cropState.offsetX += (e.clientX - cropState.dragStartX) / scale;
-        cropState.offsetY += (e.clientY - cropState.dragStartY) / scale;
+        const bs = getCropBaseScale();
+        cropState.offsetX += (e.clientX - cropState.dragStartX) * scale / (bs * cropState.zoom);
+        cropState.offsetY += (e.clientY - cropState.dragStartY) * scale / (bs * cropState.zoom);
         cropState.dragStartX = e.clientX;
         cropState.dragStartY = e.clientY;
         clampOffsets();
@@ -3697,12 +4137,13 @@
       };
       canvas.onmouseup = canvas.onmouseleave = () => { cropState.dragging = false; };
 
-      canvas.ontouchstart = e => { e.preventDefault(); const t = e.touches[0]; cropState.dragging = true; cropState.dragStartX = t.clientX; cropState.dragStartY = t.clientY; };
+      canvas.ontouchstart = e => { e.preventDefault(); const t = e.touches[0]; cropState.dragging = true; cropState.userAdjusted = true; cropState.dragStartX = t.clientX; cropState.dragStartY = t.clientY; };
       canvas.ontouchmove = e => {
         if (!cropState.dragging) return;
         const t = e.touches[0]; const scale = getCropScale();
-        cropState.offsetX += (t.clientX - cropState.dragStartX) / scale;
-        cropState.offsetY += (t.clientY - cropState.dragStartY) / scale;
+        const bs = getCropBaseScale();
+        cropState.offsetX += (t.clientX - cropState.dragStartX) * scale / (bs * cropState.zoom);
+        cropState.offsetY += (t.clientY - cropState.dragStartY) * scale / (bs * cropState.zoom);
         cropState.dragStartX = t.clientX;
         cropState.dragStartY = t.clientY;
         clampOffsets();
@@ -3727,6 +4168,31 @@
       return Math.max(canvas.width / img.naturalWidth, canvas.height / img.naturalHeight);
     }
 
+    function getCropDrawMetrics() {
+      const canvas = document.getElementById('cropCanvas');
+      const img = cropState.img;
+      if (!img) return null;
+      const viewW = canvas.width, viewH = canvas.height;
+      const bs = getCropBaseScale();
+      const drawW = img.naturalWidth * bs * cropState.zoom;
+      const drawH = img.naturalHeight * bs * cropState.zoom;
+      const dx = (viewW - drawW) / 2 + cropState.offsetX * bs * cropState.zoom;
+      const dy = (viewH - drawH) / 2 + cropState.offsetY * bs * cropState.zoom;
+      return { viewW, viewH, drawW, drawH, dx, dy };
+    }
+
+    function getCropSourceBox() {
+      const img = cropState.img;
+      const m = getCropDrawMetrics();
+      if (!img || !m) return null;
+      return {
+        srcX: -m.dx / m.drawW * img.naturalWidth,
+        srcY: -m.dy / m.drawH * img.naturalHeight,
+        srcW: m.viewW / m.drawW * img.naturalWidth,
+        srcH: m.viewH / m.drawH * img.naturalHeight,
+      };
+    }
+
     function clampOffsets() {
       const img = cropState.img;
       if (!img) return;
@@ -3747,16 +4213,77 @@
       const img = cropState.img;
       if (!img) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const viewW = canvas.width, viewH = canvas.height;
-      const bs = getCropBaseScale();
-      const drawW = img.naturalWidth * bs * cropState.zoom;
-      const drawH = img.naturalHeight * bs * cropState.zoom;
-      const dx = (viewW - drawW) / 2 + cropState.offsetX * bs * cropState.zoom;
-      const dy = (viewH - drawH) / 2 + cropState.offsetY * bs * cropState.zoom;
-      ctx.drawImage(img, dx, dy, drawW, drawH);
+      const m = getCropDrawMetrics();
+      if (!m) return;
+      ctx.drawImage(img, m.dx, m.dy, m.drawW, m.drawH);
+      drawCropMinimap();
+    }
+
+    function renderCropMinimapBase() {
+      const img = cropState.img;
+      const canvas = document.getElementById('cropMinimap');
+      const wrap = canvas ? canvas.parentElement : null;
+      if (!img || !canvas || !wrap) return;
+      const dpr = window.devicePixelRatio || 1;
+      const cssW = Math.max(1, wrap.clientWidth || 170);
+      const cssH = Math.max(1, wrap.clientHeight || 120);
+      canvas.width = Math.round(cssW * dpr);
+      canvas.height = Math.round(cssH * dpr);
+
+      const base = document.createElement('canvas');
+      base.width = canvas.width;
+      base.height = canvas.height;
+      const ctx = base.getContext('2d');
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, base.width, base.height);
+
+      const scale = Math.min(base.width / img.naturalWidth, base.height / img.naturalHeight);
+      const imageW = img.naturalWidth * scale;
+      const imageH = img.naturalHeight * scale;
+      const imageX = (base.width - imageW) / 2;
+      const imageY = (base.height - imageH) / 2;
+      ctx.drawImage(img, imageX, imageY, imageW, imageH);
+      cropMinimapBase = { canvas: base, imageX, imageY, imageW, imageH, scale, dpr };
+    }
+
+    function drawCropMinimap() {
+      const canvas = document.getElementById('cropMinimap');
+      const img = cropState.img;
+      if (!canvas || !img) return;
+      if (!cropMinimapBase || cropMinimapBase.canvas.width !== canvas.width || cropMinimapBase.canvas.height !== canvas.height) {
+        renderCropMinimapBase();
+      }
+      if (!cropMinimapBase) return;
+
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(cropMinimapBase.canvas, 0, 0);
+
+      const box = getCropSourceBox();
+      if (!box) return;
+      const x1 = Math.max(0, Math.min(img.naturalWidth, box.srcX));
+      const y1 = Math.max(0, Math.min(img.naturalHeight, box.srcY));
+      const x2 = Math.max(0, Math.min(img.naturalWidth, box.srcX + box.srcW));
+      const y2 = Math.max(0, Math.min(img.naturalHeight, box.srcY + box.srcH));
+      const rectX = cropMinimapBase.imageX + x1 * cropMinimapBase.scale;
+      const rectY = cropMinimapBase.imageY + y1 * cropMinimapBase.scale;
+      const rectW = Math.max(1, (x2 - x1) * cropMinimapBase.scale);
+      const rectH = Math.max(1, (y2 - y1) * cropMinimapBase.scale);
+      const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#c07a3f';
+
+      ctx.save();
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+      ctx.lineWidth = Math.max(3, 4 * cropMinimapBase.dpr);
+      ctx.strokeRect(rectX, rectY, rectW, rectH);
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = Math.max(2, 2 * cropMinimapBase.dpr);
+      ctx.strokeRect(rectX, rectY, rectW, rectH);
+      ctx.restore();
     }
 
     function onCropZoom(val) {
+      cropState.userAdjusted = true;
       const oldZoom = cropState.zoom;
       cropState.zoom = val / 100;
       if (oldZoom > 0) {
@@ -3776,6 +4303,10 @@
       cropState.zoom = 1;
       cropState.offsetX = 0;
       cropState.offsetY = 0;
+      cropState.seedSource = 'manual';
+      cropState.userAdjusted = true;  // explicit Center press; a late hint must not override
+      const cap = document.getElementById('cropCaption');
+      if (cap) cap.textContent = '';
       const slider = document.getElementById('cropZoom');
       if (slider) {
         slider.value = Math.round(cropState.zoom * 100);
@@ -3797,17 +4328,9 @@
       const img = cropState.img;
       if (!img) return;
       const outW = 3840, outH = 2160;
-      const viewCanvas = document.getElementById('cropCanvas');
-      const viewW = viewCanvas.width, viewH = viewCanvas.height;
-      const bs = getCropBaseScale();
-      const drawW = img.naturalWidth * bs * cropState.zoom;
-      const drawH = img.naturalHeight * bs * cropState.zoom;
-      const dx = (viewW - drawW) / 2 + cropState.offsetX * bs * cropState.zoom;
-      const dy = (viewH - drawH) / 2 + cropState.offsetY * bs * cropState.zoom;
-      const srcX = -dx / drawW * img.naturalWidth;
-      const srcY = -dy / drawH * img.naturalHeight;
-      const srcW = viewW / drawW * img.naturalWidth;
-      const srcH = viewH / drawH * img.naturalHeight;
+      const box = getCropSourceBox();
+      if (!box) return;
+      const { srcX, srcY, srcW, srcH } = box;
 
       const offscreen = document.createElement('canvas');
       offscreen.width = outW;
@@ -3819,7 +4342,13 @@
         const name = cropState.file.name.replace(/\.[^.]+$/, '') + '_cropped.jpg';
         const croppedFile = new File([blob], name, { type: 'image/jpeg' });
         pendingFiles[cropState.fileIndex] = croppedFile;
-        pendingAnalysis[cropState.fileIndex] = { width: outW, height: outH, aspect: 16/9, compliant: true, issues: [] };
+        pendingAnalysis[cropState.fileIndex] = {
+          width: outW, height: outH, aspect: 16/9, compliant: true, issues: [],
+          crop_box: {
+            x: srcX, y: srcY, w: srcW, h: srcH,
+            source: cropState.seedSource || 'manual',
+          },
+        };
         renderPendingFiles();
         document.getElementById('cropModal').classList.remove('active');
         if (cropResolve) { cropResolve('cropped'); cropResolve = null; }
@@ -3865,30 +4394,55 @@
       }
     }
 
+    // Each call clears the strip synchronously but repopulates it via async
+    // FileReader reads. If a second call lands before the first call's reads
+    // resolve, both sets of reads append — visible as duplicated cards. The
+    // generation token makes any overlapping/duplicate call safe: only the
+    // most recent call's reads are allowed to actually append.
+    let pendingRenderGen = 0;
     function renderPendingFiles() {
       const strip = document.getElementById('uploadThumbStrip');
       strip.innerHTML = '';
+      const gen = ++pendingRenderGen;
       pendingFiles.forEach((file, idx) => {
         const reader = new FileReader();
         reader.onload = e => {
+          if (gen !== pendingRenderGen) return;  // superseded by a newer render
           const item = document.createElement('div');
           item.className = 'upload-thumb-item';
           const a = pendingAnalysis[idx];
-          const badgeClass = a ? ('compliance-badge ' + (a.compliant ? 'compliance-ok' : 'compliance-warn')) : 'compliance-badge';
-          const badgeHTML = a ? getComplianceBadgeHTML(a) : '';
+          const s = getThumbStatusHTML(a);
           item.innerHTML = `
-            <button class="thumb-remove" onclick="removePendingFile(${idx})" title="Remove from upload queue" aria-label="Remove">&times;</button>
             <img src="${e.target.result}">
-            <span class="${badgeClass}" id="compBadge_${idx}">${badgeHTML}</span>
+            <div class="thumb-status ${s.cls}" id="thumbStatus_${idx}">${s.html}</div>
+            <div class="thumb-actions">
+              <button class="thumb-action-link" onclick="editPendingCrop(${idx})">Crop</button>
+              <span class="thumb-action-sep">&middot;</span>
+              <button class="thumb-action-link" onclick="removePendingFile(${idx})">Remove</button>
+            </div>
             <div class="thumb-name" title="${file.name}">${file.name}</div>
           `;
           strip.appendChild(item);
         };
         reader.readAsDataURL(file);
       });
-      document.getElementById('uploadPreview').classList.add('active');
-      document.getElementById('uploadStatus').textContent =
-        `${pendingFiles.length} file${pendingFiles.length > 1 ? 's' : ''} selected`;
+      document.getElementById('uploadPreview').classList.toggle('active', pendingFiles.length > 0);
+      setUploadZoneCollapsed(pendingFiles.length > 0);
+      updateUploadButtonLabel();
+    }
+
+    // Open the crop modal for a single pending image outside the mandatory
+    // cropQueue flow — lets users adjust crops even on already-compliant
+    // images (e.g. to zoom past an unwanted border). Reuses the existing
+    // cropResolve short-circuit already honored by applyCrop/skipCropFile/
+    // removeCropFile/closeCropModal. Doesn't re-render here: applyCrop() and
+    // removeCropFile() already re-render before resolving, and skip/cancel
+    // don't change pendingFiles/pendingAnalysis, so nothing needs a refresh.
+    function editPendingCrop(idx) {
+      return new Promise(resolve => {
+        cropResolve = resolve;
+        openCropModal(idx);
+      });
     }
 
     function removePendingFile(idx) {
@@ -3905,22 +4459,28 @@
       document.getElementById('uploadThumbStrip').style.display = '';
       document.getElementById('uploadControls').style.display = '';
       document.getElementById('uploadProgress').style.display = 'none';
+      setUploadZoneCollapsed(false);
+      setUploadStage('review');
       fileInput.value = '';
     }
 
-    function uploadFileWithProgress(file, matte, analyze, { onUploadProgress, onAnalyzing }) {
+    // Plain upload only — saves + pushes to the TV, then returns. AI analysis
+    // (when enabled) is a deliberately separate request (see doFinalUpload) so
+    // the progress UI can show two real, honestly-timed stages instead of one
+    // opaque blob. defer_analyze tells the server not to also fire its own
+    // fire-and-forget background analysis for this upload (that's only for
+    // callers who don't intend to analyze themselves).
+    function uploadFileWithProgress(file, matte, { onUploadProgress, cropBox }) {
       return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         const form = new FormData();
         form.append('file', file);
         form.append('matte', matte);
         form.append('filename', file.name);
+        if (cropBox) form.append('crop_box', JSON.stringify(cropBox));
 
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) onUploadProgress((e.loaded / e.total) * 100);
-        };
-        xhr.upload.onloadend = () => {
-          if (analyze) onAnalyzing();
         };
 
         xhr.onload = () => {
@@ -3933,7 +4493,7 @@
         };
 
         xhr.onerror = () => reject(new Error('Network error'));
-        xhr.open('POST', '/api/upload' + (analyze ? '?analyze=true' : ''));
+        xhr.open('POST', '/api/upload?defer_analyze=true');
         xhr.send(form);
       });
     }
@@ -3956,8 +4516,11 @@
       }
 
       if (nonCompliant.length > 0) {
+        setUploadStage('crop');
         cropQueue = nonCompliant;
         cropQueueIndex = 0;
+        cropPrefetch.clear();
+        prefetchCropHints(nonCompliant);  // warm cloud hints for the whole queue
         updateQueueIndicator();
         openCropModal(cropQueue[0]);
         return;
@@ -3968,6 +4531,7 @@
 
     async function doFinalUpload() {
       if (!pendingFiles.length) { cancelUpload(); return; }
+      setUploadStage('upload');
       const matte = document.getElementById('uploadMatte').value;
 
       document.getElementById('uploadThumbStrip').style.display = 'none';
@@ -3981,11 +4545,16 @@
         shouldAnalyze = cfg.auto_analyze && cfg.claude?.api_key;
       } catch (err) { console.debug('Auto-analyze config check failed:', err); }
 
+      // Two explicit, checked-off stages instead of one swapped text label —
+      // the analyze row only exists in the DOM when analysis is actually on.
       progressDiv.innerHTML = `
         <div class="progress-label" id="progressLabel">Preparing upload...</div>
         <div class="progress-bar-track"><div class="progress-bar-fill" id="progressBar"></div></div>
+        <div class="progress-stages">
+          <span class="stage" id="stageUpload"><span class="mark">○</span>Uploading to TV</span>
+          ${shouldAnalyze ? '<span class="stage" id="stageAnalyze"><span class="mark">○</span>Analyzing with AI</span>' : ''}
+        </div>
         <div class="progress-overall">
-          <span id="progressStage"></span>
           <span id="progressOverall"></span>
         </div>
         <button onclick="cancelUpload()">Cancel</button>
@@ -3994,37 +4563,60 @@
       let completed = 0;
       const total = pendingFiles.length;
 
-      for (const file of pendingFiles) {
+      for (let fi = 0; fi < pendingFiles.length; fi++) {
+        const file = pendingFiles[fi];
+        const cropBox = pendingAnalysis[fi] && pendingAnalysis[fi].crop_box;
         document.getElementById('progressLabel').textContent =
           total > 1 ? `${completed + 1} of ${total}: ${file.name}` : file.name;
         document.getElementById('progressBar').className = 'progress-bar-fill';
         document.getElementById('progressBar').style.width = '0%';
-        document.getElementById('progressStage').textContent = 'Uploading...';
+        const stageUpload = document.getElementById('stageUpload');
+        const stageAnalyze = document.getElementById('stageAnalyze');
+        stageUpload.className = 'stage active';
+        stageUpload.innerHTML = '<span class="mark">●</span>Uploading to TV';
+        if (stageAnalyze) {
+          stageAnalyze.className = 'stage';
+          stageAnalyze.innerHTML = '<span class="mark">○</span>Analyzing with AI';
+        }
         document.getElementById('progressOverall').textContent =
           total > 1 ? `${completed} of ${total} complete` : '';
 
         try {
-          const result = await uploadFileWithProgress(file, matte, shouldAnalyze, {
+          // Stage 1: real byte progress through the upload + TV push.
+          const result = await uploadFileWithProgress(file, matte, {
+            cropBox,
             onUploadProgress: (pct) => {
               document.getElementById('progressBar').style.width = pct + '%';
-              document.getElementById('progressStage').textContent = `Uploading... ${Math.round(pct)}%`;
-            },
-            onAnalyzing: () => {
-              document.getElementById('progressBar').className = 'progress-bar-fill pulsing';
-              document.getElementById('progressStage').textContent = 'Analyzing with AI...';
+              stageUpload.innerHTML = `<span class="mark">●</span>Uploading to TV... ${Math.round(pct)}%`;
             },
           });
 
           completed++;
+          stageUpload.className = 'stage done';
+          stageUpload.innerHTML = '<span class="mark">✓</span>Uploaded to TV';
           if (result.content_id) {
             artworkMeta[result.content_id] = {
               title: result.title, width: result.width, height: result.height,
             };
-            if (result.ai_meta) {
-              artworkMeta[result.content_id].ai_meta = result.ai_meta;
-            }
-            if (result.ai_error) {
-              toast(`AI analysis failed for ${file.name}`, 'error');
+
+            // Stage 2: a real, separately-timed analysis call — not folded
+            // into the upload request, so this stage only shows once it's
+            // actually running (no fake progress for either stage).
+            if (shouldAnalyze && stageAnalyze) {
+              document.getElementById('progressBar').className = 'progress-bar-fill pulsing';
+              stageAnalyze.className = 'stage active';
+              stageAnalyze.innerHTML = '<span class="mark">●</span>Analyzing with AI...';
+              try {
+                const aiResult = await api(`/ai/analyze/${result.content_id}`, { method: 'POST', timeout: 120000 });
+                artworkMeta[result.content_id].ai_meta = aiResult.ai_meta;
+                stageAnalyze.className = 'stage done';
+                stageAnalyze.innerHTML = '<span class="mark">✓</span>Analyzed';
+              } catch (e) {
+                toast(`AI analysis failed for ${file.name}`, 'error');
+                stageAnalyze.className = 'stage done';
+                stageAnalyze.innerHTML = '<span class="mark">!</span>Analysis failed';
+              }
+              document.getElementById('progressBar').className = 'progress-bar-fill';
             }
           }
         } catch (e) {
@@ -4146,6 +4738,7 @@
         if (openaiKey) body.openai.api_key = openaiKey;
         if (gvKey) body.google_vision.api_key = gvKey;
         await api('/ai/config', { method: 'PUT', body });
+        enhancedModeAvailable = null;  // re-check on next crop (mid-session key change)
         toast('AI settings saved', 'success');
         if (apiKey) {
           document.getElementById('aiApiKey').placeholder = '...' + apiKey.slice(-4);

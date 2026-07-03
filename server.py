@@ -756,7 +756,9 @@ async def upload_art(
     file: UploadFile = File(...),
     matte: str = Form("shadowbox_polar"),
     filename: str = Form(""),
+    crop_box: str = Form(""),
     analyze: bool = Query(False),
+    defer_analyze: bool = Query(False),
 ):
     chunks = []
     total = 0
@@ -807,15 +809,33 @@ async def upload_art(
     analysis_img.save(buf, format="JPEG", quality=80)
     (ORIGINALS_DIR / f"{content_id}.jpg").write_bytes(buf.getvalue())
 
+    record = {
+        "title": original_name,
+        "original_filename": file.filename or "",
+        "width": w,
+        "height": h,
+        "uploaded_at": datetime.now(timezone.utc).isoformat(),
+    }
+    # Provenance: which source-pixel 16:9 window the user accepted, and which
+    # engine seeded it (smartcrop | google | manual).  The baked image is
+    # authoritative; this is informational.
+    if crop_box:
+        try:
+            cb = json.loads(crop_box)
+            if isinstance(cb, dict) and {"x", "y", "w", "h"} <= cb.keys():
+                record["crop_box"] = {
+                    "x": round(cb["x"]),
+                    "y": round(cb["y"]),
+                    "w": round(cb["w"]),
+                    "h": round(cb["h"]),
+                    "source": str(cb.get("source", "manual"))[:16],
+                }
+        except (ValueError, TypeError):
+            log.debug("Ignoring malformed crop_box for %s", content_id)
+
     async with _meta_lock:
         meta = _load_artwork_meta()
-        meta["artwork"][content_id] = {
-            "title": original_name,
-            "original_filename": file.filename or "",
-            "width": w,
-            "height": h,
-            "uploaded_at": datetime.now(timezone.utc).isoformat(),
-        }
+        meta["artwork"][content_id] = record
         _save_artwork_meta(meta)
 
     ai_result = None
@@ -837,7 +857,10 @@ async def upload_art(
         except Exception as e:
             log.warning("Auto-analyze failed during upload for %s: %s", content_id, e)
             ai_result = {"error": "Analysis failed"}
-    elif should_analyze:
+    elif should_analyze and not defer_analyze:
+        # defer_analyze means the caller (the upload UI, for an honest two-stage
+        # progress bar) commits to driving analysis itself via the standalone
+        # /api/ai/analyze/{content_id} endpoint — don't double-fire here.
         asyncio.create_task(_analyze_artwork_background(content_id))
 
     resp = {"ok": True, "content_id": content_id, "title": original_name, "width": w, "height": h}
@@ -1216,6 +1239,65 @@ async def test_vision_key(body: dict | None = None):
         return result
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+
+@app.post("/api/crop-hint")
+async def crop_hint(file: UploadFile = File(...)):
+    """Suggest a 16:9 crop box for a staged (pre-upload) image via Google Vision.
+
+    This is the cloud "ceiling" seed for the Adjust Image modal.  It runs at
+    crop time — independent of the analysis pipeline — and is gated on the same
+    Enhanced Mode (Google Vision) key used for identification.  Any soft failure
+    (no key, Vision disabled, no hint) returns {"box": null} so the frontend
+    silently falls back to the local smartcrop.js seed; cropping never blocks.
+    """
+    config = _load_ai_config()
+    gv_key = config.get("google_vision", {}).get("api_key", "")
+    if not (config.get("use_google_vision") and gv_key):
+        return {"box": None, "reason": "disabled"}
+
+    data = await file.read()
+    try:
+        img = Image.open(io.BytesIO(data))
+        full_w, full_h = img.size
+    except Exception:
+        return {"box": None, "reason": "unreadable"}
+
+    # Authoritative 2% aspect gate: a near-16:9 image doesn't need a (paid) hint,
+    # so don't spend a Vision request on one even if a caller skips the client gate.
+    if full_h and abs((full_w / full_h) - 16 / 9) / (16 / 9) <= 0.02:
+        return {"box": None, "reason": "near_16_9"}
+
+    # Downscale for Vision (cost/latency); scale the returned box back to the
+    # original pixel space the modal works in (matches img.naturalWidth).
+    vis = img.copy()
+    vis.thumbnail((1024, 1024), Image.LANCZOS)
+    vis_w, vis_h = vis.size
+    if vis.mode not in ("RGB", "L"):
+        vis = vis.convert("RGB")
+    buf = io.BytesIO()
+    vis.save(buf, format="JPEG", quality=85)
+    image_b64 = base64.b64encode(buf.getvalue()).decode()
+
+    try:
+        box = await _google_crop_hint(gv_key, image_b64)
+    except VisionApiError as e:
+        log.warning("Crop hint failed: [%s] %s", e.status, e.message)
+        return {"box": None, "reason": e.status}
+    except Exception as e:
+        log.warning("Crop hint error: %s", e)
+        return {"box": None, "reason": "error"}
+
+    if not box:
+        return {"box": None, "reason": "no_hint"}
+
+    sx = full_w / vis_w if vis_w else 1
+    sy = full_h / vis_h if vis_h else 1
+    x = max(0, round(box[0] * sx))
+    y = max(0, round(box[1] * sy))
+    w = min(full_w - x, round(box[2] * sx))
+    h = min(full_h - y, round(box[3] * sy))
+    return {"box": {"x": x, "y": y, "w": w, "h": h, "source": "google"}}
 
 
 # --- API usage tracking ---
@@ -1650,6 +1732,46 @@ async def _call_google_vision(api_key: str, image_b64: str) -> dict | None:
         if resp.status_code != 200:
             raise _parse_vision_error(resp)
         return resp.json().get("responses", [{}])[0].get("webDetection", {})
+
+
+async def _google_crop_hint(
+    api_key: str, image_b64: str, aspect: float = 16 / 9
+) -> tuple[int, int, int, int] | None:
+    """Ask Google Vision for a CROP_HINTS box at the given aspect ratio.
+
+    Reuses the same images:annotate endpoint as identification — just a
+    different feature.  Returns a source-pixel (x, y, w, h) box, or None if
+    Vision returned no usable hint.
+    """
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(
+            "https://vision.googleapis.com/v1/images:annotate",
+            headers={"x-goog-api-key": api_key},
+            json={
+                "requests": [{
+                    "image": {"content": image_b64},
+                    "features": [{"type": "CROP_HINTS"}],
+                    "imageContext": {"cropHintsParams": {"aspectRatios": [aspect]}},
+                }],
+            },
+        )
+        if resp.status_code != 200:
+            raise _parse_vision_error(resp)
+        hints = (
+            resp.json()
+            .get("responses", [{}])[0]
+            .get("cropHintsAnnotation", {})
+            .get("cropHints", [])
+        )
+        if not hints:
+            return None
+        verts = hints[0].get("boundingPoly", {}).get("vertices", [])
+        if not verts:
+            return None
+        xs = [v.get("x", 0) for v in verts]
+        ys = [v.get("y", 0) for v in verts]
+        x0, y0, x1, y1 = min(xs), min(ys), max(xs), max(ys)
+        return x0, y0, x1 - x0, y1 - y0
 
 
 _MUSEUM_DOMAINS = (
