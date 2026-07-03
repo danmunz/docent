@@ -1205,7 +1205,7 @@
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 24px;
-    max-width: 700px;
+    max-width: 860px;
     width: 95vw;
   }
 
@@ -1223,23 +1223,41 @@
     margin-bottom: 8px;
   }
 
+  .crop-canvas-row {
+    display: flex;
+    align-items: stretch;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
   .crop-canvas-wrap {
     position: relative;
-    width: 100%;
+    flex: 1 1 auto;
+    min-width: 0;
     aspect-ratio: 16/9;
     background: #000;
     border-radius: var(--radius);
     overflow: hidden;
     cursor: grab;
-    margin-bottom: 16px;
   }
 
   .crop-canvas-wrap:active { cursor: grabbing; }
 
-  .crop-canvas-wrap canvas {
+  .crop-canvas-wrap canvas,
+  .crop-minimap-wrap canvas {
     width: 100%;
     height: 100%;
     display: block;
+  }
+
+  .crop-minimap-wrap {
+    width: 170px;
+    flex: 0 0 170px;
+    min-height: 120px;
+    background: #000;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
   }
 
   .crop-controls {
@@ -1925,6 +1943,12 @@
     .atmosphere-content { padding: 20px; }
     .atmosphere-picks { flex-direction: column; }
     .atmosphere-pick-card .pick-img { max-height: 160px; }
+    .crop-canvas-row { flex-direction: column; }
+    .crop-minimap-wrap {
+      width: 100%;
+      flex-basis: 132px;
+      min-height: 132px;
+    }
   }
 
   /* Entrance animation */
@@ -2165,8 +2189,13 @@
     <div class="crop-modal-content">
       <div class="crop-queue-indicator" id="cropQueueIndicator"></div>
       <h3>Adjust Image &mdash; <span id="cropFileName"></span></h3>
-      <div class="crop-canvas-wrap" id="cropCanvasWrap">
-        <canvas id="cropCanvas"></canvas>
+      <div class="crop-canvas-row">
+        <div class="crop-canvas-wrap" id="cropCanvasWrap">
+          <canvas id="cropCanvas"></canvas>
+        </div>
+        <div class="crop-minimap-wrap">
+          <canvas id="cropMinimap"></canvas>
+        </div>
       </div>
       <div class="crop-controls">
         <label>Zoom</label>
@@ -3866,6 +3895,7 @@
     let cropQueueIndex = 0;
     let cropResolve = null;
     let cropPrefetch = new Map();      // File -> Promise<crop-hint response | null>
+    let cropMinimapBase = null;
     let enhancedModeAvailable = null;  // cached: Google Vision key configured?
 
     // Is Enhanced Mode (a Google Vision key) configured? Cached per session.
@@ -4047,10 +4077,12 @@
       const img = new Image();
       img.onload = () => {
         cropState.img = img;
+        cropMinimapBase = null;
         autoCrop();  // instant center baseline (sets userAdjusted; reset below before seeding)
         document.getElementById('cropModal').classList.add('active');
         requestAnimationFrame(() => {
           setupCropCanvas();
+          renderCropMinimapBase();
           drawCropCanvas();
           updateCropInfo();
           // Clear the flag set by the internal autoCrop above, so the smart seed
@@ -4075,6 +4107,9 @@
       if (cropState.img) URL.revokeObjectURL(cropState.img.src);
       cropState.img = null;
       cropState.file = null;
+      cropMinimapBase = null;
+      const minimap = document.getElementById('cropMinimap');
+      if (minimap) minimap.getContext('2d').clearRect(0, 0, minimap.width, minimap.height);
       if (cropResolve) { cropResolve('cancel'); cropResolve = null; }
     }
 
@@ -4133,6 +4168,31 @@
       return Math.max(canvas.width / img.naturalWidth, canvas.height / img.naturalHeight);
     }
 
+    function getCropDrawMetrics() {
+      const canvas = document.getElementById('cropCanvas');
+      const img = cropState.img;
+      if (!img) return null;
+      const viewW = canvas.width, viewH = canvas.height;
+      const bs = getCropBaseScale();
+      const drawW = img.naturalWidth * bs * cropState.zoom;
+      const drawH = img.naturalHeight * bs * cropState.zoom;
+      const dx = (viewW - drawW) / 2 + cropState.offsetX * bs * cropState.zoom;
+      const dy = (viewH - drawH) / 2 + cropState.offsetY * bs * cropState.zoom;
+      return { viewW, viewH, drawW, drawH, dx, dy };
+    }
+
+    function getCropSourceBox() {
+      const img = cropState.img;
+      const m = getCropDrawMetrics();
+      if (!img || !m) return null;
+      return {
+        srcX: -m.dx / m.drawW * img.naturalWidth,
+        srcY: -m.dy / m.drawH * img.naturalHeight,
+        srcW: m.viewW / m.drawW * img.naturalWidth,
+        srcH: m.viewH / m.drawH * img.naturalHeight,
+      };
+    }
+
     function clampOffsets() {
       const img = cropState.img;
       if (!img) return;
@@ -4153,13 +4213,73 @@
       const img = cropState.img;
       if (!img) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const viewW = canvas.width, viewH = canvas.height;
-      const bs = getCropBaseScale();
-      const drawW = img.naturalWidth * bs * cropState.zoom;
-      const drawH = img.naturalHeight * bs * cropState.zoom;
-      const dx = (viewW - drawW) / 2 + cropState.offsetX * bs * cropState.zoom;
-      const dy = (viewH - drawH) / 2 + cropState.offsetY * bs * cropState.zoom;
-      ctx.drawImage(img, dx, dy, drawW, drawH);
+      const m = getCropDrawMetrics();
+      if (!m) return;
+      ctx.drawImage(img, m.dx, m.dy, m.drawW, m.drawH);
+      drawCropMinimap();
+    }
+
+    function renderCropMinimapBase() {
+      const img = cropState.img;
+      const canvas = document.getElementById('cropMinimap');
+      const wrap = canvas ? canvas.parentElement : null;
+      if (!img || !canvas || !wrap) return;
+      const dpr = window.devicePixelRatio || 1;
+      const cssW = Math.max(1, wrap.clientWidth || 170);
+      const cssH = Math.max(1, wrap.clientHeight || 120);
+      canvas.width = Math.round(cssW * dpr);
+      canvas.height = Math.round(cssH * dpr);
+
+      const base = document.createElement('canvas');
+      base.width = canvas.width;
+      base.height = canvas.height;
+      const ctx = base.getContext('2d');
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, base.width, base.height);
+
+      const scale = Math.min(base.width / img.naturalWidth, base.height / img.naturalHeight);
+      const imageW = img.naturalWidth * scale;
+      const imageH = img.naturalHeight * scale;
+      const imageX = (base.width - imageW) / 2;
+      const imageY = (base.height - imageH) / 2;
+      ctx.drawImage(img, imageX, imageY, imageW, imageH);
+      cropMinimapBase = { canvas: base, imageX, imageY, imageW, imageH, scale, dpr };
+    }
+
+    function drawCropMinimap() {
+      const canvas = document.getElementById('cropMinimap');
+      const img = cropState.img;
+      if (!canvas || !img) return;
+      if (!cropMinimapBase || cropMinimapBase.canvas.width !== canvas.width || cropMinimapBase.canvas.height !== canvas.height) {
+        renderCropMinimapBase();
+      }
+      if (!cropMinimapBase) return;
+
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(cropMinimapBase.canvas, 0, 0);
+
+      const box = getCropSourceBox();
+      if (!box) return;
+      const x1 = Math.max(0, Math.min(img.naturalWidth, box.srcX));
+      const y1 = Math.max(0, Math.min(img.naturalHeight, box.srcY));
+      const x2 = Math.max(0, Math.min(img.naturalWidth, box.srcX + box.srcW));
+      const y2 = Math.max(0, Math.min(img.naturalHeight, box.srcY + box.srcH));
+      const rectX = cropMinimapBase.imageX + x1 * cropMinimapBase.scale;
+      const rectY = cropMinimapBase.imageY + y1 * cropMinimapBase.scale;
+      const rectW = Math.max(1, (x2 - x1) * cropMinimapBase.scale);
+      const rectH = Math.max(1, (y2 - y1) * cropMinimapBase.scale);
+      const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#c07a3f';
+
+      ctx.save();
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+      ctx.lineWidth = Math.max(3, 4 * cropMinimapBase.dpr);
+      ctx.strokeRect(rectX, rectY, rectW, rectH);
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = Math.max(2, 2 * cropMinimapBase.dpr);
+      ctx.strokeRect(rectX, rectY, rectW, rectH);
+      ctx.restore();
     }
 
     function onCropZoom(val) {
@@ -4208,17 +4328,9 @@
       const img = cropState.img;
       if (!img) return;
       const outW = 3840, outH = 2160;
-      const viewCanvas = document.getElementById('cropCanvas');
-      const viewW = viewCanvas.width, viewH = viewCanvas.height;
-      const bs = getCropBaseScale();
-      const drawW = img.naturalWidth * bs * cropState.zoom;
-      const drawH = img.naturalHeight * bs * cropState.zoom;
-      const dx = (viewW - drawW) / 2 + cropState.offsetX * bs * cropState.zoom;
-      const dy = (viewH - drawH) / 2 + cropState.offsetY * bs * cropState.zoom;
-      const srcX = -dx / drawW * img.naturalWidth;
-      const srcY = -dy / drawH * img.naturalHeight;
-      const srcW = viewW / drawW * img.naturalWidth;
-      const srcH = viewH / drawH * img.naturalHeight;
+      const box = getCropSourceBox();
+      if (!box) return;
+      const { srcX, srcY, srcW, srcH } = box;
 
       const offscreen = document.createElement('canvas');
       offscreen.width = outW;
