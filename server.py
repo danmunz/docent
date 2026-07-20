@@ -20,7 +20,7 @@ import httpx
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.staticfiles import StaticFiles
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from samsungtvws import SamsungTVWS
 from samsungtvws.exceptions import ResponseError
 
@@ -268,6 +268,7 @@ def _validate_content_ids(cids: list) -> list[str]:
 
 _CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f]")
 MAX_NAME_LENGTH = 200
+_ALLOWED_META_KEYS = {"title"}
 
 
 def _validate_name(name: str, field: str = "name") -> str:
@@ -279,6 +280,29 @@ def _validate_name(name: str, field: str = "name") -> str:
     if _CONTROL_CHAR_RE.search(name):
         raise HTTPException(400, f"{field} contains invalid characters")
     return name
+
+
+Image.MAX_IMAGE_PIXELS = 50_000_000  # ~50MP; guards against decompression bombs
+
+_ALLOWED_IMAGE_FORMATS = {"JPEG", "PNG", "WEBP"}
+
+
+class _UnsupportedImageError(ValueError):
+    pass
+
+
+def _open_validated_image(data: bytes) -> Image.Image:
+    """Open and validate an uploaded image, rejecting bomb-prone/unsupported formats."""
+    try:
+        img = Image.open(io.BytesIO(data))
+        img.load()
+    except Image.DecompressionBombError:
+        raise _UnsupportedImageError("Image dimensions too large")
+    except UnidentifiedImageError:
+        raise _UnsupportedImageError("Unrecognized image format")
+    if img.format not in _ALLOWED_IMAGE_FORMATS:
+        raise _UnsupportedImageError(f"Unsupported image format: {img.format}")
+    return img
 
 
 def _cached_content_ids() -> set[str]:
@@ -775,7 +799,10 @@ async def upload_art(
     if ext == "jpeg":
         ext = "jpg"
 
-    img = Image.open(io.BytesIO(data))
+    try:
+        img = _open_validated_image(data)
+    except _UnsupportedImageError as e:
+        raise HTTPException(400, str(e))
     w, h = img.size
 
     if ext not in ("jpg", "png"):
@@ -1134,6 +1161,8 @@ async def update_artwork_meta(content_id: str, body: dict):
         if content_id not in data["artwork"]:
             data["artwork"][content_id] = {}
         for key, value in body.items():
+            if key not in _ALLOWED_META_KEYS:
+                continue
             if key == "title":
                 if isinstance(value, str):
                     value = value.strip()
@@ -2083,7 +2112,7 @@ async def run_drive_sync(sync_id: str):
                 continue
             try:
                 image_data = await _drive_download_file(file_id, api_key)
-                img = Image.open(io.BytesIO(image_data))
+                img = _open_validated_image(image_data)
                 w, h = img.size
                 ext = Path(df["name"]).suffix.lstrip(".").lower()
                 if ext == "jpeg":

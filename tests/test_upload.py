@@ -50,3 +50,27 @@ class TestUpload:
 
         assert resp.status_code == 413
         assert not mock_tv.upload.called
+
+    async def test_upload_rejects_unsupported_format(self, client, mock_tv):
+        """BMP is bomb-prone and not in the allowlist — rejected with 400."""
+        resp = await client.post(
+            "/api/upload",
+            files={"file": ("art.bmp", _image_bytes(fmt="BMP"), "image/bmp")},
+            data={"matte": "none"},
+        )
+
+        assert resp.status_code == 400
+        assert not mock_tv.upload.called
+
+    async def test_upload_rejects_decompression_bomb(self, client, mock_tv, monkeypatch):
+        """Images exceeding MAX_IMAGE_PIXELS are rejected with 400."""
+        monkeypatch.setattr("server.Image.MAX_IMAGE_PIXELS", 100)
+
+        resp = await client.post(
+            "/api/upload",
+            files={"file": ("art.png", _image_bytes(), "image/png")},
+            data={"matte": "none"},
+        )
+
+        assert resp.status_code == 400
+        assert not mock_tv.upload.called
