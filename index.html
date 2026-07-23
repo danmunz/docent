@@ -1397,6 +1397,71 @@
 
   .ai-meta-row .label { color: var(--text2); flex-shrink: 0; }
   .ai-meta-row .value { color: var(--text); text-align: right; }
+  .user-override { color: var(--accent); }
+
+  .ai-meta-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .ai-meta-section-header h4 { margin-bottom: 0; }
+
+  .meta-lock-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text2);
+    opacity: 0.45;
+    padding: 2px 4px;
+    border-radius: var(--radius);
+    transition: opacity 0.15s;
+    line-height: 1;
+  }
+  .meta-lock-btn:hover { opacity: 1; }
+
+  .meta-override-dot {
+    font-size: 6px;
+    color: var(--accent);
+    margin-left: 3px;
+    vertical-align: middle;
+  }
+
+  .meta-edit-row {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 5px 0;
+  }
+  .meta-edit-row .label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text2);
+  }
+  .meta-edit-input, .meta-edit-textarea {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--accent);
+    padding: 5px 8px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .meta-edit-textarea {
+    resize: vertical;
+    min-height: 64px;
+  }
+  .meta-edit-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+  }
 
   /* Wikipedia links — invisible until curious */
   a.wiki-link {
@@ -2418,6 +2483,7 @@
     let selectedIds = new Set();
     let selectMode = false;
     let detailItem = null;
+    let _metaEditLocked = true;
     let artModeOn = false;
     let mattes = null;
     let pendingFiles = [];
@@ -2584,6 +2650,7 @@
     }
 
     function esc(s) { const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
+    function escAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;'); }
 
     const TOAST_ICONS = { success: '\u2713 ', error: '\u2717 ', info: '\u2139 ' };
     function toast(msg, type = 'info', duration = 3000) {
@@ -2879,6 +2946,11 @@
         url = 'https://en.wikipedia.org/wiki/' + encodeURIComponent(cleaned.replace(/ /g, '_'));
       }
       return `<a class="wiki-link" href="${url}" target="_blank" rel="noopener noreferrer" title="Look up ${safe} on Wikipedia">${safe}</a>`;
+    }
+
+    function getMergedMeta(contentId) {
+      const meta = artworkMeta[contentId] || {};
+      return { ...(meta.ai_meta || {}), ...(meta.user_meta || {}) };
     }
 
     function wikiHeaderLabel(label, sortType) {
@@ -3439,12 +3511,11 @@
       if (!newTitle) { toast('Title cannot be empty', 'error'); return; }
       if (newTitle.length > 200) { toast('Title must be 200 characters or fewer', 'error'); return; }
       try {
-        await api(`/artwork-meta/${detailItem.content_id}`, {
+        const resp = await api(`/artwork-meta/${detailItem.content_id}`, {
           method: 'PUT',
           body: { title: newTitle },
         });
-        artworkMeta[detailItem.content_id] = artworkMeta[detailItem.content_id] || {};
-        artworkMeta[detailItem.content_id].title = newTitle;
+        artworkMeta[detailItem.content_id] = resp.meta;
         renderDetailTitle(detailItem);
         renderGrid();
         toast('Title updated', 'success');
@@ -4831,59 +4902,139 @@
     // --- AI metadata display ---
 
     function renderAiMeta(contentId) {
+      _metaEditLocked = true;
       const section = document.getElementById('aiMetaSection');
-      const meta = artworkMeta[contentId];
-      const ai = meta?.ai_meta;
+      const meta = artworkMeta[contentId] || {};
+      const ai = meta.ai_meta;
+      const um = meta.user_meta || {};
+      const merged = { ...(ai || {}), ...um };
 
-      if (meta?.ai_failed) {
-        section.style.display = 'block';
-        section.innerHTML = `
-          <h4>AI Analysis</h4>
-          <p style="color:var(--danger);font-size:13px">Analysis failed: ${meta.ai_error || 'Unknown error'}</p>
-          <button class="ai-analyze-btn" onclick="analyzeCurrentArtwork()" title="Retry AI analysis">Retry Analysis</button>
-        `;
-        return;
+      section.style.display = 'block';
+
+      const lockBtn = `<button class="meta-lock-btn" onclick="unlockMetaEdit()" title="Edit metadata">&#x1F512;</button>`;
+      const header = `<div class="ai-meta-section-header"><h4>AI Analysis</h4>${lockBtn}</div>`;
+
+      const errorNotice = meta.ai_failed
+        ? `<p style="color:var(--danger);font-size:13px;margin:0 0 8px">${esc(meta.ai_error || 'Analysis failed')}</p>`
+        : '';
+
+      function fieldRow(label, key, displayFn) {
+        const val = merged[key];
+        const isOverride = !!um[key];
+        const display = val
+          ? (displayFn ? displayFn(val) : esc(val))
+          : '<span style="opacity:0.3">—</span>';
+        const dot = isOverride ? '<span class="meta-override-dot" title="Edited by you">&#9679;</span>' : '';
+        return `<div class="ai-meta-row"><span class="label">${label}</span><span class="value${isOverride ? ' user-override' : ''}">${display}${dot}</span></div>`;
       }
 
-      if (!ai) {
-        section.style.display = 'block';
-        section.innerHTML = `
-          <h4>AI Analysis</h4>
-          <button class="ai-analyze-btn" onclick="analyzeCurrentArtwork()" title="Identify and analyze this artwork with AI">Analyze with AI</button>
-        `;
-        return;
-      }
-
-      const vibes = (ai.vibes || []).map(v => `<span class="vibe-pill">${v}</span>`).join('');
       const provenance = [];
-      if (ai.vision_identified) provenance.push('ID: Google Vision');
-      if (ai.vision_error) {
+      if (ai?.vision_identified) provenance.push('ID: Google Vision');
+      if (ai?.vision_error) {
         const tip = ai.vision_error === 'api_disabled'
           ? 'Vision API not enabled — <a href="#" onclick="openSettings();return false">fix in Settings</a>'
           : 'Vision unavailable — <a href="#" onclick="openSettings();return false">check Settings</a>';
         provenance.push(`<span style="color:var(--danger)">${tip}</span>`);
       }
-      if (ai.provider && ai.model) {
+      if (ai?.provider && ai?.model) {
         const shortModel = ai.model.replace('claude-', '').replace('-20250514', '')
           .replace('-20251001', '').replace('gpt-', 'GPT-');
         provenance.push(`Analysis: ${shortModel}`);
       }
       const provenanceLine = provenance.length
         ? `<div class="ai-provenance">${provenance.join(' &middot; ')}</div>` : '';
-      section.style.display = 'block';
+
+      const vibes = (ai?.vibes || []).map(v => `<span class="vibe-pill">${esc(v)}</span>`).join('');
+      const descVal = merged.description;
+      const wikiUrl = um.wikipedia_url;
+      const wikiRow = wikiUrl
+        ? `<div class="ai-meta-row"><span class="label">Wikipedia</span><span class="value user-override"><a class="wiki-link" href="${escAttr(wikiUrl)}" target="_blank" rel="noopener noreferrer">Open &#x2197;</a><span class="meta-override-dot" title="Edited by you">&#9679;</span></span></div>`
+        : '';
+      const analyzeLabel = ai ? 'Re-analyze' : 'Analyze with AI';
+      const analyzeTitle = ai ? 'Run AI analysis again' : 'Identify and analyze this artwork with AI';
+
       section.innerHTML = `
-        <h4>AI Analysis</h4>
-        <div class="ai-meta-row"><span class="label">Title</span><span class="value">${wikiAnchor(ai.title, 'search')}</span></div>
-        <div class="ai-meta-row"><span class="label">Artist</span><span class="value">${wikiAnchor(ai.artist, 'direct')}</span></div>
-        <div class="ai-meta-row"><span class="label">Year</span><span class="value">${wikiAnchor(ai.year, 'year')}</span></div>
-        <div class="ai-meta-row"><span class="label">Medium</span><span class="value">${wikiAnchor(ai.medium, 'search')}</span></div>
-        <div class="ai-meta-row"><span class="label">School</span><span class="value">${wikiAnchor(ai.school, 'direct')}</span></div>
-        ${ai.confidence ? `<div class="ai-meta-row"><span class="label">Confidence</span><span class="value">${ai.confidence}</span></div>` : ''}
+        ${header}
+        ${errorNotice}
+        ${ai?.title ? fieldRow('Title', 'title', v => wikiAnchor(v, 'search')) : ''}
+        ${fieldRow('Artist', 'artist', v => wikiAnchor(v, 'direct'))}
+        ${fieldRow('Year', 'year', v => wikiAnchor(v, 'year'))}
+        ${fieldRow('Medium', 'medium', v => wikiAnchor(v, 'search'))}
+        ${fieldRow('School', 'school', v => wikiAnchor(v, 'direct'))}
+        ${wikiRow}
+        ${ai?.confidence ? `<div class="ai-meta-row"><span class="label">Confidence</span><span class="value">${esc(ai.confidence)}</span></div>` : ''}
         ${vibes ? `<div class="ai-vibes">${vibes}</div>` : ''}
-        ${ai.description ? `<div class="ai-description">${ai.description}</div>` : ''}
-        <button class="ai-analyze-btn" onclick="analyzeCurrentArtwork()" title="Run AI analysis again">Re-analyze</button>
+        ${descVal ? `<div class="ai-description">${esc(descVal)}</div>` : ''}
+        <button class="ai-analyze-btn" onclick="analyzeCurrentArtwork()" title="${analyzeTitle}">${analyzeLabel}</button>
         ${provenanceLine}
       `;
+    }
+
+    function unlockMetaEdit() {
+      if (!detailItem) return;
+      _metaEditLocked = false;
+      const id = detailItem.content_id;
+      const meta = artworkMeta[id] || {};
+      const um = meta.user_meta || {};
+      const ai = meta.ai_meta || {};
+      const section = document.getElementById('aiMetaSection');
+
+      const unlockBtn = `<button class="meta-lock-btn" onclick="lockMetaEdit()" title="Cancel editing">&#x1F513;</button>`;
+      const header = `<div class="ai-meta-section-header"><h4>AI Analysis</h4>${unlockBtn}</div>`;
+
+      // Pre-fill from user_meta only; AI values appear as placeholder text so
+      // unedited fields stay AI-sourced and future re-analysis can update them.
+      function editRow(label, key, type = 'input') {
+        const userVal = um[key] || '';
+        const aiVal = ai[key] || '';
+        if (type === 'textarea') {
+          return `<div class="meta-edit-row"><span class="label">${label}</span><textarea id="meta-edit-${key}" class="meta-edit-textarea" rows="3" placeholder="${escAttr(aiVal)}">${esc(userVal)}</textarea></div>`;
+        }
+        return `<div class="meta-edit-row"><span class="label">${label}</span><input id="meta-edit-${key}" class="meta-edit-input" type="text" value="${escAttr(userVal)}" placeholder="${escAttr(aiVal)}" maxlength="200"></div>`;
+      }
+
+      section.innerHTML = `
+        ${header}
+        ${editRow('Artist', 'artist')}
+        ${editRow('Year', 'year')}
+        ${editRow('Medium', 'medium')}
+        ${editRow('School', 'school')}
+        ${editRow('Description', 'description', 'textarea')}
+        ${editRow('Wikipedia URL', 'wikipedia_url')}
+        <div class="meta-edit-actions">
+          <button class="primary" onclick="saveMetaEdit()">Save</button>
+          <button onclick="lockMetaEdit()">Cancel</button>
+        </div>
+      `;
+
+      section.querySelector('#meta-edit-artist')?.focus();
+    }
+
+    function lockMetaEdit() {
+      if (!detailItem) return;
+      renderAiMeta(detailItem.content_id);
+    }
+
+    async function saveMetaEdit() {
+      if (!detailItem) return;
+      const id = detailItem.content_id;
+      const get = key => document.getElementById(`meta-edit-${key}`)?.value?.trim() ?? '';
+
+      const user_meta = {};
+      const fields = ['artist', 'year', 'medium', 'school', 'description', 'wikipedia_url'];
+      for (const k of fields) {
+        const v = get(k);
+        if (v) user_meta[k] = v;
+      }
+
+      try {
+        const resp = await api(`/artwork-meta/${id}`, { method: 'PUT', body: { user_meta } });
+        artworkMeta[id] = resp.meta;
+        renderAiMeta(id);
+        toast('Metadata saved', 'success');
+      } catch (e) {
+        toast('Save failed: ' + e.message, 'error');
+      }
     }
 
     async function analyzeCurrentArtwork() {

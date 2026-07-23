@@ -281,6 +281,22 @@ def _validate_name(name: str, field: str = "name") -> str:
     return name
 
 
+_HTTPS_URL_RE = re.compile(r'^https://[^\s\x00-\x1f\x7f"\'<>]{1,490}$')
+
+
+def _validate_url(value: str, field: str) -> str:
+    value = value.strip()
+    if not value:
+        return value
+    if not _HTTPS_URL_RE.match(value):
+        raise HTTPException(400, f"{field} must be a valid https:// URL (500 chars max)")
+    return value
+
+
+_ALLOWED_USER_META_KEYS = {"artist", "year", "medium", "school", "description", "wikipedia_url"}
+MAX_DESCRIPTION_LENGTH = 2000
+
+
 def _cached_content_ids() -> set[str]:
     return {p.stem for p in THUMB_DIR.glob("*.jpg")}
 
@@ -1133,16 +1149,39 @@ async def update_artwork_meta(content_id: str, body: dict):
         data = _load_artwork_meta()
         if content_id not in data["artwork"]:
             data["artwork"][content_id] = {}
-        for key, value in body.items():
-            if key == "title":
-                if isinstance(value, str):
-                    value = value.strip()
-                    if not value:
-                        continue
-                    value = _validate_name(value, "title")
-            data["artwork"][content_id][key] = value
+        entry = data["artwork"][content_id]
+
+        if "title" in body:
+            value = body["title"]
+            if isinstance(value, str):
+                value = value.strip()
+                if value:
+                    entry["title"] = _validate_name(value, "title")
+
+        if "user_meta" in body:
+            raw = body["user_meta"]
+            if not isinstance(raw, dict):
+                raise HTTPException(400, "user_meta must be an object")
+            unknown = set(raw) - _ALLOWED_USER_META_KEYS
+            if unknown:
+                raise HTTPException(400, f"Unknown user_meta keys: {', '.join(sorted(unknown))}")
+            validated: dict = {}
+            for k, v in raw.items():
+                if not isinstance(v, str):
+                    raise HTTPException(400, f"user_meta.{k} must be a string")
+                if k == "wikipedia_url":
+                    validated[k] = _validate_url(v, k)
+                elif k == "description":
+                    v = v.strip()
+                    if len(v) > MAX_DESCRIPTION_LENGTH:
+                        raise HTTPException(400, f"description must be {MAX_DESCRIPTION_LENGTH} characters or fewer")
+                    validated[k] = v
+                else:
+                    validated[k] = _validate_name(v, k) if v.strip() else ""
+            entry["user_meta"] = validated
+
         _save_artwork_meta(data)
-    return {"ok": True, "content_id": content_id, "meta": data["artwork"][content_id]}
+    return {"ok": True, "content_id": content_id, "meta": entry}
 
 
 # --- AI config ---
