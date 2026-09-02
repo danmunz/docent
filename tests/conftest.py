@@ -70,7 +70,7 @@ def seed_ai_config(tmp_data_dir):
             "auto_analyze": False,
             "opus_fallback": False,
             "use_google_vision": True,
-            "claude": {"api_key": "sk-ant-test-key-1234ZgAA", "model": "claude-sonnet-4-20250514"},
+            "claude": {"api_key": "sk-ant-test-key-1234ZgAA", "model": "claude-sonnet-5"},
             "openai": {"api_key": "", "model": "gpt-4.1"},
             "google_vision": {"api_key": ""},
         }

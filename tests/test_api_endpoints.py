@@ -504,7 +504,7 @@ class TestUsage:
             "input_tokens": 1_000_000,
             "output_tokens": 1_000_000,
             "calls": 10,
-            "by_model": {"claude-sonnet-4-6": {
+            "by_model": {"claude-sonnet-5": {
                 "input_tokens": 1_000_000,
                 "output_tokens": 1_000_000,
                 "calls": 10,
