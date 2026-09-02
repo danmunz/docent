@@ -19,7 +19,7 @@ class TestLoadAiConfig:
         assert config["google_vision"]["api_key"] == ""
 
     def test_old_file_missing_new_keys(self, tmp_data_dir):
-        old = {"auto_analyze": True, "claude": {"api_key": "sk-test", "model": "claude-sonnet-4-6"}}
+        old = {"auto_analyze": True, "claude": {"api_key": "sk-test", "model": "claude-sonnet-5"}}
         (tmp_data_dir / "ai_config.json").write_text(json.dumps(old))
         config = server._load_ai_config()
         assert config["auto_analyze"] is True
@@ -36,7 +36,7 @@ class TestLoadAiConfig:
         (tmp_data_dir / "ai_config.json").write_text(json.dumps(partial))
         config = server._load_ai_config()
         assert config["claude"]["api_key"] == "sk-test"
-        assert config["claude"]["model"] == "claude-sonnet-4-6"
+        assert config["claude"]["model"] == "claude-sonnet-5"
 
     def test_complete_file_unchanged(self, tmp_data_dir):
         full = {
@@ -44,7 +44,7 @@ class TestLoadAiConfig:
             "auto_analyze": True,
             "opus_fallback": True,
             "use_google_vision": False,
-            "claude": {"api_key": "sk-c", "model": "claude-opus-4-8"},
+            "claude": {"api_key": "sk-c", "model": "claude-opus-5"},
             "openai": {"api_key": "sk-o", "model": "gpt-4o"},
             "google_vision": {"api_key": "AIza-gv"},
         }
@@ -61,7 +61,7 @@ class TestLoadAiConfig:
 
 class TestRecordApiUsage:
     def test_creates_file_on_first_call(self, tmp_data_dir):
-        server._record_api_usage("claude-sonnet-4-6", 100, 50)
+        server._record_api_usage("claude-sonnet-5", 100, 50)
         data = json.loads((tmp_data_dir / "api_usage.json").read_text())
         month_data = list(data["monthly"].values())[0]
         assert month_data["input_tokens"] == 100
@@ -78,11 +78,11 @@ class TestRecordApiUsage:
         assert month_data["calls"] == 2
 
     def test_multiple_models(self, tmp_data_dir):
-        server._record_api_usage("claude-sonnet-4-6", 100, 50)
+        server._record_api_usage("claude-sonnet-5", 100, 50)
         server._record_api_usage("gpt-4.1", 200, 80)
         data = json.loads((tmp_data_dir / "api_usage.json").read_text())
         by_model = list(data["monthly"].values())[0]["by_model"]
-        assert "claude-sonnet-4-6" in by_model
+        assert "claude-sonnet-5" in by_model
         assert "gpt-4.1" in by_model
         assert by_model["gpt-4.1"]["input_tokens"] == 200
 
@@ -133,7 +133,7 @@ class TestCostCalculation:
                     "output_tokens": 1_000_000,
                     "calls": 10,
                     "by_model": {
-                        "claude-sonnet-4-6": {
+                        "claude-sonnet-5": {
                             "input_tokens": 1_000_000,
                             "output_tokens": 1_000_000,
                             "calls": 10,

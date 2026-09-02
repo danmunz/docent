@@ -57,7 +57,7 @@ class TestApiUsageConcurrency:
 
         # Directly call _record_api_usage in rapid succession
         for _ in range(10):
-            server._record_api_usage("claude-sonnet-4-20250514", 100, 50)
+            server._record_api_usage("claude-sonnet-5", 100, 50)
 
         resp = await client.get("/api/ai/usage")
         data = resp.json()
