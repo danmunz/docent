@@ -192,6 +192,7 @@ class TestTvOpTimeoutBehavior:
         opened inside get_thumbnail_list is still alive in the thread.
         """
         monkeypatch.setattr(server, "TV_RETRY_DELAY", 0.01)
+        monkeypatch.setattr(server, "TV_RECOVER_GRACE", 0.1)
 
         close_calls = []
         original_close = server._close_tv_connection

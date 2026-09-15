@@ -8,6 +8,9 @@ TV lock forever.
 """
 from __future__ import annotations
 
+import asyncio
+import threading
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -133,3 +136,64 @@ class TestWakeOnLan:
         monkeypatch.setattr(server, "TV_MAC", "")
         server._wake_tv()
         assert called["n"] == 0
+
+
+class TestTvWorker:
+    """TV calls run on one long-lived thread that can be unstuck or replaced.
+
+    samsungtvws bounds each socket read but not the loops around them, so a
+    misbehaving TV can park the calling thread for good — and a parked thread
+    can't be killed. These cover the two properties that keeps contained: the
+    thread count stays fixed, and a parked worker is written off rather than
+    left to swallow every later call.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _stub_connection(self, monkeypatch):
+        monkeypatch.setattr(server, "_ensure_tv_connection", lambda: MagicMock())
+        monkeypatch.setattr(server, "_close_tv_connection", lambda: None)
+        monkeypatch.setattr(server, "TV_RETRY_DELAY", 0)
+
+    async def test_all_ops_share_one_thread(self):
+        """One worker, not one thread per call — that's what bounds the leak."""
+        threads = set()
+
+        def record(art):
+            threads.add(threading.current_thread().name)
+            return True
+
+        for _ in range(5):
+            await server._tv_op(record, attempts=1, timeout=1)
+
+        assert len(threads) == 1
+
+    async def test_parked_worker_is_replaced_and_later_ops_still_run(self, monkeypatch):
+        """A call that never returns must not swallow every op after it."""
+        monkeypatch.setattr(server, "TV_RECOVER_GRACE", 0.05)
+        release = threading.Event()
+
+        await server._tv_op(lambda art: "ok", attempts=1, timeout=1)
+        wedged = server._tv_worker
+
+        with pytest.raises(asyncio.TimeoutError):
+            await server._tv_op(lambda art: release.wait(timeout=5), attempts=1, timeout=0.05)
+
+        assert server._tv_worker is not wedged, "parked worker was not written off"
+
+        # The next op must run on the fresh worker rather than queue behind
+        # the parked job, which is still holding the old thread.
+        assert await server._tv_op(lambda art: "after", attempts=1, timeout=1) == "after"
+        release.set()
+
+    def test_interrupt_shuts_down_the_socket(self, monkeypatch):
+        """Shutting the socket down is the only way to unstick a blocked read."""
+        how = []
+        sock = SimpleNamespace(shutdown=how.append)
+        monkeypatch.setattr(server, "_tv_art", SimpleNamespace(connection=SimpleNamespace(sock=sock)))
+
+        assert server._interrupt_tv_socket() is True
+        assert how == [server.socket.SHUT_RDWR]
+
+    def test_interrupt_without_a_connection_is_a_noop(self, monkeypatch):
+        monkeypatch.setattr(server, "_tv_art", None)
+        assert server._interrupt_tv_socket() is False
