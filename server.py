@@ -22,7 +22,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.staticfiles import StaticFiles
 from PIL import Image
 from samsungtvws import SamsungTVWS
-from samsungtvws.exceptions import ResponseError
+from samsungtvws.exceptions import ConnectionFailure, ResponseError
 
 try:
     from dotenv import load_dotenv
@@ -253,6 +253,23 @@ def _get_cached_thumbnail(content_id: str) -> bytes | None:
     return None
 
 
+def _fetch_thumbnail(art, content_id: str) -> bytearray | None:
+    """Fetch one thumbnail from the TV.  Called inside ``_tv_op``.
+
+    Uses the list request even for a single ID: some Frames (e.g. 2025
+    models) never answer the single-item ``get_thumbnail`` request.  The TV
+    closes the data socket for items it has no thumbnail for, which is
+    returned as ``None`` so it isn't treated as a connection failure.
+    """
+    try:
+        result = art.get_thumbnail_list([content_id])
+    except ConnectionFailure as e:
+        if "socket closed" not in str(e):
+            raise
+        return None
+    return next(iter(result.values()), None)
+
+
 _CONTENT_ID_RE = re.compile(r"^[A-Za-z0-9_\-]{1,128}$")
 
 
@@ -480,7 +497,7 @@ async def get_thumbnail(content_id: str):
     cached = _get_cached_thumbnail(content_id)
     if cached:
         return Response(content=cached, media_type="image/jpeg")
-    data = await _tv_op(lambda art: art.get_thumbnail(content_id))
+    data = await _tv_op(lambda art: _fetch_thumbnail(art, content_id))
     if not data:
         raise HTTPException(404, "No thumbnail")
     _save_thumbnail(content_id, data)
@@ -540,7 +557,7 @@ async def _prefetch_thumbnails(content_ids: list[str], *, source: str = "fallbac
                 break
             try:
                 data = await _tv_op(
-                    lambda art, _cid=cid: art.get_thumbnail(_cid),
+                    lambda art, _cid=cid: _fetch_thumbnail(art, _cid),
                     attempts=1,
                 )
                 if data:
@@ -847,7 +864,7 @@ async def upload_art(
     if analyze and should_analyze:
         if not (THUMB_DIR / f"{content_id}.jpg").exists():
             try:
-                thumb_data = await _tv_op(lambda art: art.get_thumbnail(content_id))
+                thumb_data = await _tv_op(lambda art: _fetch_thumbnail(art, content_id))
                 if thumb_data:
                     _save_thumbnail(content_id, thumb_data)
             except Exception:

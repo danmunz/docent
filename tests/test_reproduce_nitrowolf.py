@@ -45,7 +45,7 @@ def _make_mock_art(
 
     Args:
         batch_fail: If True, get_thumbnail_list always raises ConnectionFailure.
-        individual_fail_after: Number of successful get_thumbnail calls before
+        individual_fail_after: Number of successful one-item requests before
             all subsequent calls raise ConnectionFailure. 0 = all fail.
         per_call_delay: Simulated D2D transfer time per operation.
     """
@@ -53,6 +53,8 @@ def _make_mock_art(
     call_count = {"individual": 0, "batch": 0}
 
     def mock_batch(ids):
+        if len(ids) == 1:
+            return {f"{ids[0]}.jpg": mock_individual(ids[0])}
         call_count["batch"] += 1
         time.sleep(per_call_delay)
         if batch_fail:
@@ -70,7 +72,6 @@ def _make_mock_art(
         raise ConnectionFailure({"reason": "socket closed"})
 
     art.get_thumbnail_list.side_effect = mock_batch
-    art.get_thumbnail.side_effect = mock_individual
     art._call_count = call_count
     return art
 
