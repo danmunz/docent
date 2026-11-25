@@ -76,15 +76,14 @@ class TestIndividualFallbackBehavior:
     This breaks the timeout race that blocked Nitrowolf's UI.
     """
 
-    async def test_fallback_returns_immediately_and_prefetches(self, client, mock_tv, tmp_data_dir, monkeypatch):
+    async def test_fallback_returns_immediately_and_prefetches(self, client, thumbnail_mock, tmp_data_dir, monkeypatch):
         """Response returns fast with all IDs as missing; background task
         fetches them individually and caches to disk."""
         monkeypatch.setattr(server, "TV_RETRY_DELAY", 0.01)
         monkeypatch.setattr(server, "_BATCH_THUMB_COOLDOWN", 0.1)
         monkeypatch.setattr(server, "_PREFETCH_INTER_DELAY", 0.01)
         monkeypatch.setattr(server, "_PREFETCH_BACKOFF", 0.01)
-        mock_tv.get_thumbnail_list.side_effect = ConnectionFailure({"reason": "socket closed"})
-        mock_tv.get_thumbnail.return_value = bytearray(b"\xff\xd8\xff\xe0thumb")
+        thumbnail_mock.return_value = bytearray(b"\xff\xd8\xff\xe0thumb")
 
         ids = [f"ART{i:03d}" for i in range(20)]
         start = time.monotonic()
@@ -111,10 +110,10 @@ class TestIndividualFallbackBehavior:
         data2 = resp2.json()
         assert len(data2["thumbnails"]) == 20
         assert data2["missing"] == []
-        # Background task made 20 individual get_thumbnail calls (1 attempt each)
-        assert mock_tv.get_thumbnail.call_count == 20
+        # Background task made 20 individual thumbnail requests (1 attempt each)
+        assert thumbnail_mock.call_count == 20
 
-    async def test_fallback_cascading_failures(self, client, mock_tv, tmp_data_dir, monkeypatch):
+    async def test_fallback_cascading_failures(self, client, thumbnail_mock, tmp_data_dir, monkeypatch):
         """When the TV is unstable, background prefetch caches what it can
         and aborts after consecutive failures.
         """
@@ -122,16 +121,15 @@ class TestIndividualFallbackBehavior:
         monkeypatch.setattr(server, "_BATCH_THUMB_COOLDOWN", 0.1)
         monkeypatch.setattr(server, "_PREFETCH_INTER_DELAY", 0.01)
         monkeypatch.setattr(server, "_PREFETCH_BACKOFF", 0.01)
-        mock_tv.get_thumbnail_list.side_effect = ConnectionFailure({"reason": "socket closed"})
         call_count = 0
         def flaky_get_thumbnail(cid):
             nonlocal call_count
             call_count += 1
             if call_count <= 3:
                 return bytearray(b"\xff\xd8\xff\xe0thumb")
-            raise ConnectionFailure({"reason": "socket closed"})
+            raise ConnectionFailure("Websocket Time out")
 
-        mock_tv.get_thumbnail.side_effect = flaky_get_thumbnail
+        thumbnail_mock.side_effect = flaky_get_thumbnail
 
         ids = [f"ART{i:03d}" for i in range(10)]
         resp = await client.post("/api/thumbnails", json={"content_ids": ids})
@@ -290,7 +288,7 @@ class TestLargeCatalogScenario:
     lock contention and connection attempts.
     """
 
-    async def test_524_artworks_connection_count(self, client, mock_tv, tmp_data_dir, monkeypatch):
+    async def test_524_artworks_connection_count(self, client, thumbnail_mock, tmp_data_dir, monkeypatch):
         """With 524 artworks, the frontend sends 26 batches of 20 + 1 batch of 4.
         If ALL fail and trigger individual fallback, that's up to
         524 individual _tv_op calls, each with 3 attempts = 1,572 connection attempts.
@@ -304,15 +302,7 @@ class TestLargeCatalogScenario:
         monkeypatch.setattr(server, "_PREFETCH_INTER_DELAY", 0.01)
         monkeypatch.setattr(server, "_PREFETCH_BACKOFF", 0.01)
 
-        batch_call_count = 0
-
-        def fail_batch(ids):
-            nonlocal batch_call_count
-            batch_call_count += 1
-            raise ConnectionFailure({"reason": "socket closed"})
-
-        mock_tv.get_thumbnail_list.side_effect = fail_batch
-        mock_tv.get_thumbnail.side_effect = ConnectionFailure({"reason": "socket closed"})
+        thumbnail_mock.side_effect = ConnectionFailure("Websocket Time out")
 
         # Simulate ONE batch of 20 (what the frontend sends)
         ids = [f"ART{i:04d}" for i in range(20)]
@@ -333,9 +323,9 @@ class TestLargeCatalogScenario:
                 break
 
         # Background task aborted after 5 consecutive failures (not all 20)
-        assert mock_tv.get_thumbnail.call_count == 5, (
+        assert thumbnail_mock.call_count == 5, (
             f"Expected exactly 5 background individual calls before abort, "
-            f"got {mock_tv.get_thumbnail.call_count}"
+            f"got {thumbnail_mock.call_count}"
         )
 
     async def test_cached_thumbnails_skip_tv_entirely(self, client, mock_tv, tmp_data_dir):
@@ -435,7 +425,7 @@ class TestClientTimeoutRace:
         )
 
     async def test_server_caches_thumbnails_despite_client_timeout(
-        self, client, mock_tv, tmp_data_dir, monkeypatch
+        self, client, mock_tv, thumbnail_mock, tmp_data_dir, monkeypatch
     ):
         """With background prefetch, the server responds immediately and
         prefetches thumbnails in the background. The cached thumbnails
@@ -445,7 +435,6 @@ class TestClientTimeoutRace:
         monkeypatch.setattr(server, "_BATCH_THUMB_COOLDOWN", 0.1)
         monkeypatch.setattr(server, "_PREFETCH_INTER_DELAY", 0.01)
         monkeypatch.setattr(server, "_PREFETCH_BACKOFF", 0.01)
-        mock_tv.get_thumbnail_list.side_effect = ConnectionFailure({"reason": "socket closed"})
 
         call_idx = 0
         def intermittent_thumbnail(cid):
@@ -454,9 +443,9 @@ class TestClientTimeoutRace:
             # First 5 IDs succeed, rest fail
             if call_idx <= 5:
                 return bytearray(b"\xff\xd8\xff\xe0thumb")
-            raise ConnectionFailure({"reason": "socket closed"})
+            raise ConnectionFailure("Websocket Time out")
 
-        mock_tv.get_thumbnail.side_effect = intermittent_thumbnail
+        thumbnail_mock.side_effect = intermittent_thumbnail
 
         ids = [f"ART{i:03d}" for i in range(10)]
         # Response returns immediately — no inline individual calls
@@ -485,7 +474,7 @@ class TestClientTimeoutRace:
 
         # Now simulate the retry — all 10 IDs requested again
         mock_tv.get_thumbnail_list.reset_mock()
-        mock_tv.get_thumbnail.reset_mock()
+        thumbnail_mock.reset_mock()
 
         resp2 = await client.post("/api/thumbnails", json={"content_ids": ids})
         data2 = resp2.json()

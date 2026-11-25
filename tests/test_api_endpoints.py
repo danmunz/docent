@@ -588,11 +588,10 @@ class TestThumbnailBatchFallback:
         assert "ART001" in data["thumbnails"]
         assert data["missing"] == []
 
-    async def test_batch_failure_falls_back_to_background_prefetch(self, client, mock_tv, tmp_data_dir, monkeypatch):
+    async def test_batch_failure_falls_back_to_background_prefetch(self, client, thumbnail_mock, tmp_data_dir, monkeypatch):
         """When get_thumbnail_list fails, response returns immediately with
         fallback=True and missing IDs; a background task prefetches them."""
-        mock_tv.get_thumbnail_list.side_effect = Exception("socket closed")
-        mock_tv.get_thumbnail.return_value = b"\xff\xd8\xff\xe0thumb-individual"
+        thumbnail_mock.return_value = b"\xff\xd8\xff\xe0thumb-individual"
         # Speed up inter-fetch delays in tests
         monkeypatch.setattr(server, "_BATCH_THUMB_COOLDOWN", 0.1)
 
@@ -616,10 +615,9 @@ class TestThumbnailBatchFallback:
         assert "ART002" in data2["thumbnails"]
         assert data2["missing"] == []
 
-    async def test_partial_fallback_results(self, client, mock_tv, tmp_data_dir, monkeypatch):
+    async def test_partial_fallback_results(self, client, thumbnail_mock, tmp_data_dir, monkeypatch):
         """When batch fails, missing IDs are prefetched in background.
         IDs that the TV can't fetch remain missing even after retry."""
-        mock_tv.get_thumbnail_list.side_effect = Exception("socket closed")
         # Speed up inter-fetch delays in tests
         monkeypatch.setattr(server, "_BATCH_THUMB_COOLDOWN", 0.1)
 
@@ -628,7 +626,7 @@ class TestThumbnailBatchFallback:
                 return b"\xff\xd8\xff\xe0thumb1"
             raise Exception("TV busy")
 
-        mock_tv.get_thumbnail.side_effect = _get_thumb
+        thumbnail_mock.side_effect = _get_thumb
 
         resp = await client.post("/api/thumbnails", json={"content_ids": ["ART001", "ART002"]})
         assert resp.status_code == 200
@@ -662,7 +660,7 @@ class TestThumbnailBatchFallback:
         mock_tv.get_thumbnail_list.assert_not_called()
         mock_tv.get_thumbnail.assert_not_called()
 
-    async def test_retry_endpoint_resets_circuit_breaker(self, client, mock_tv, tmp_data_dir, monkeypatch):
+    async def test_retry_endpoint_resets_circuit_breaker(self, client, thumbnail_mock, tmp_data_dir, monkeypatch):
         """POST /api/thumbnails/retry resets the circuit breaker and schedules prefetch."""
         import time
         # Simulate a recent failure so circuit breaker is tripped
@@ -672,7 +670,7 @@ class TestThumbnailBatchFallback:
         # Confirm circuit breaker is active (would skip batch)
         assert time.monotonic() - server._batch_thumb_last_failure < 60
 
-        mock_tv.get_thumbnail.return_value = b"\xff\xd8\xff\xe0thumb"
+        thumbnail_mock.return_value = b"\xff\xd8\xff\xe0thumb"
         resp = await client.post("/api/thumbnails/retry", json={"content_ids": ["ART001"]})
         assert resp.status_code == 200
         data = resp.json()

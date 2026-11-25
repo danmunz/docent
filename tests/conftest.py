@@ -5,6 +5,7 @@ import json
 from unittest.mock import MagicMock
 
 import pytest
+from samsungtvws.exceptions import ConnectionFailure
 
 import server
 
@@ -60,6 +61,24 @@ def mock_tv(monkeypatch):
     tv.close.return_value = None
     monkeypatch.setattr(server, "get_tv", lambda: tv)
     return art
+
+
+@pytest.fixture
+def thumbnail_mock(mock_tv):
+    """Fail multi-item thumbnail requests; serve one-item requests separately.
+
+    Both go through ``get_thumbnail_list`` on the TV.  The returned mock is
+    called with the content ID of each one-item request.
+    """
+    single = MagicMock()
+
+    def _list(ids):
+        if len(ids) > 1:
+            raise ConnectionFailure({"reason": "socket closed"})
+        return {f"{ids[0]}.jpg": single(ids[0])}
+
+    mock_tv.get_thumbnail_list.side_effect = _list
+    return single
 
 
 @pytest.fixture
