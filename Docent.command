@@ -138,7 +138,8 @@ EOF
     AI_KEY=""
 
     prompt_input
-    case "${REPLY,,}" in
+    REPLY_LOWER=$(echo "$REPLY" | tr '[:upper:]' '[:lower:]')
+    case "$REPLY_LOWER" in
         c|claude)
             AI_PROVIDER="claude"
             echo ""
@@ -235,7 +236,8 @@ with open('ai_config.json', 'w') as f:
     fi
 
     if [[ -n "$AI_PROVIDER" ]]; then
-        check_mark "AI Analysis:   ${AI_PROVIDER^}"
+        AI_PROVIDER_CAP="$(echo "${AI_PROVIDER:0:1}" | tr '[:lower:]' '[:upper:]')${AI_PROVIDER:1}"
+        check_mark "AI Analysis:   $AI_PROVIDER_CAP"
     else
         skip_mark "AI Analysis:   Not configured (add in Settings)"
     fi
