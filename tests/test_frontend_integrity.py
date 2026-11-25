@@ -127,3 +127,15 @@ class TestArtworkGrouping:
         assert "MISSING_PREFIX + missingGroupLabel(item, currentSort)" in fn_body
         assert "key.slice(MISSING_PREFIX.length)" in fn_body
         assert "key === SENTINEL ? 'Not Yet Analyzed'" not in fn_body
+
+
+def test_collection_menu_stacks_above_group_nav():
+    """The 'Add to Collection' menu opens over the sticky group nav strip,
+    so it must stack above it or the first entry can't be clicked."""
+    html = (Path(__file__).resolve().parent.parent / "index.html").read_text()
+
+    def z_index(selector):
+        block = re.search(rf"\n  {re.escape(selector)} \{{(.*?)\}}", html, re.S).group(1)
+        return int(re.search(r"z-index:\s*(\d+)", block).group(1))
+
+    assert z_index(".collection-dropdown-menu") > z_index(".group-nav")
